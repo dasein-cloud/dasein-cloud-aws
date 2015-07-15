@@ -271,7 +271,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
     }
 
     @Override
-    public @Nonnull  AccessKey enableAPIAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
+    public @Nonnull  AccessKey enableApiAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "enableAPIAccess");
         try {
             CloudUser user = getUser(providerUserId);
