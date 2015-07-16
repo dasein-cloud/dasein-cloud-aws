@@ -453,10 +453,11 @@ public class ElasticIP extends AbstractIpAddressSupport<AWSCloud> {
             if( !isIPAddress(addressId) ) {
                 // If releasing an addressId (eipalloc-xxx) from a VM,
                 // we need to look up its associationId (eipassoc-xxx)
-                addressId = getVPCAddress(addressId).getProviderAssociationId();
-                if( addressId == null ) {
+                String assocId = getVPCAddress(addressId).getProviderAssociationId();
+                if( assocId == null ) {
                     throw new CloudException("Address " + addressId + " is not associated with any server.");
                 }
+                addressId = assocId;
             }
             setId("", parameters, addressId, true);
             method = new EC2Method(getProvider(), parameters);
