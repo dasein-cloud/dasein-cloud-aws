@@ -48,7 +48,7 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
     }
 
     @Override
-    public boolean supportsAPIAccess() throws CloudException, InternalException {
+    public boolean supportsApiAccess() throws CloudException, InternalException {
         return true;
     }
 
