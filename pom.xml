@@ -19,7 +19,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-aws</artifactId>
-    <version>2015.06.3</version>
+    <version>2015.06.5-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-aws</name>
@@ -46,9 +46,9 @@
     </organization>
 
     <scm>
-        <connection>scm:git:git://github.com/greese/dasein-cloud-aws.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/greese/dasein-cloud-aws.git</developerConnection>
-        <url>http://github.com/greese/dasein-cloud-aws</url>
+        <connection>scm:git:git://github.com/dasein-cloud/dasein-cloud-aws.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/dasein-cloud/dasein-cloud-aws.git</developerConnection>
+        <url>http://github.com/dasein-cloud/dasein-cloud-aws</url>
     </scm>
 
     <parent>
@@ -300,39 +300,15 @@
 
     <developers>
         <developer>
-            <name>George Reese</name>
-            <id>georgereese</id>
-            <email>george.reese -at- enstratius -dot- com</email>
+            <name>Stas Maksimov</name>
+            <id>stasmaksimov</id>
+            <email>stas.maksimov -at- enstratius -dot- com</email>
             <organization>Enstratius</organization>
             <roles>
                 <role>Java Developer</role>
-                <role>PMC</role>
             </roles>
             <url>http://www.enstratius.com</url>
-            <timezone>-6</timezone>
-        </developer>
-        <developer>
-            <name>Morgan Catlin</name>
-            <id>sylistron</id>
-            <email>morgan.catlin -at- valtira -dot- com</email>
-            <organization>Enstratius</organization>
-            <roles>
-                <role>Java Developer</role>
-            </roles>
-            <url>http://www.valtira.com</url>
-            <timezone>-6</timezone>
-        </developer>
-        <developer>
-            <name>Adrian Cole</name>
-            <id>ferncam1</id>
-            <email>adrian -at- jclouds -dot- org</email>
-            <organization>jclouds</organization>
-            <roles>
-                <role>Java Developer</role>
-                <role>PMC</role>
-            </roles>
-            <url>http://www.jclouds.org</url>
-            <timezone>-8</timezone>
+            <timezone>0</timezone>
         </developer>
     </developers>
 </project>
