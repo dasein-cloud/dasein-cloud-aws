@@ -61,7 +61,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public boolean canReboot(@Nonnull VmState fromState) throws CloudException, InternalException {
-        return true;
+        return VmState.RUNNING.equals(fromState);
     }
 
     @Override
