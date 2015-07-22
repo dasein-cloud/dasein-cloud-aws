@@ -158,6 +158,6 @@ public class NetworkCapabilities extends AbstractCapabilities<AWSCloud> implemen
 
     @Override
     public @Nonnull NamingConstraints getVlanNamingConstraints() {
-        return null;
+        return NamingConstraints.getAlphaNumeric(1, 255); // tag-based
     }
 }

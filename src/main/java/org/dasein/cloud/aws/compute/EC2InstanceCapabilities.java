@@ -111,7 +111,7 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public @Nonnull NamingConstraints getVirtualMachineNamingConstraints() {
-        return NamingConstraints.getAlphaNumeric(1, 100);
+        return NamingConstraints.getAlphaNumeric(1, 255); // tag-based
     }
 
     @Override
