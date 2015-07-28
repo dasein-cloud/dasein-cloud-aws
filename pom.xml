@@ -28,7 +28,7 @@
         Implementation of the Dasein Cloud API for AWS.
     </description>
     <inceptionYear>2009</inceptionYear>
-    <url>http://github.com/greese/dasein-cloud-aws</url>
+    <url>http://github.com/dasein-cloud/dasein-cloud-aws</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -47,9 +47,9 @@
     </organization>
 
     <scm>
-        <connection>scm:git:git://github.com/greese/dasein-cloud-aws.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/greese/dasein-cloud-aws.git</developerConnection>
-        <url>http://github.com/greese/dasein-cloud-aws</url>
+        <connection>scm:git:git://github.com/dasein-cloud/dasein-cloud-aws.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/dasein-cloud/dasein-cloud-aws.git</developerConnection>
+        <url>http://github.com/dasein-cloud/dasein-cloud-aws</url>
     </scm>
 
     <parent>
@@ -328,6 +328,17 @@
             </roles>
             <url>http://www.jclouds.org</url>
             <timezone>-8</timezone>
+        </developer>
+        <developer>
+            <name>Stas Maksimov</name>
+            <id>stasmaksimov</id>
+            <email>stas.maksimov -at- enstratius -dot- com</email>
+            <organization>Enstratius</organization>
+            <roles>
+                <role>Java Developer</role>
+            </roles>
+            <url>http://www.enstratius.com</url>
+            <timezone>0</timezone>
         </developer>
     </developers>
 </project>
