@@ -478,7 +478,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             }
             NodeList blocks = doc.getElementsByTagName("ServerCertificate");
             for ( int i = 0; i < blocks.getLength(); i++ ) {
-                Node item = blocks.item( i );
+                Node item = blocks.item(i);
                 SSLCertificate certificate = toSSLCertificate(item);
                 if (certificate != null) {
                     return certificate;
@@ -668,7 +668,7 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                     Node item = items.item(j);
 
                     if( item.getNodeName().equals("member") ) {
-                        ResourceStatus status = toStatus( item );
+                        ResourceStatus status = toStatus(item);
 
                         if( status != null ) {
                             list.add(status);
@@ -1317,7 +1317,17 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             else if( name.equals("target") ) {
                 String targetString = attr.getFirstChild().getNodeValue();
                 String[] parts = targetString.split(":");
-                protocol = LoadBalancerHealthCheck.HCProtocol.valueOf(parts[0]);
+                if( "http".equalsIgnoreCase(parts[0]) )
+                    protocol = LoadBalancerHealthCheck.HCProtocol.HTTP;
+                else if( "https".equalsIgnoreCase(parts[0]) ) {
+                    protocol = LoadBalancerHealthCheck.HCProtocol.HTTPS;
+                }
+                else if( "ssl".equalsIgnoreCase(parts[0]) ) {
+                    protocol = LoadBalancerHealthCheck.HCProtocol.SSL;
+                }
+                else if( "tcp".equalsIgnoreCase(parts[0]) ) {
+                    protocol = LoadBalancerHealthCheck.HCProtocol.TCP;
+                }
                 if( parts[1].endsWith("/") ) {
                     port = Integer.parseInt(parts[1].substring(0, parts[1].length() - 1));
                     path = "/";
