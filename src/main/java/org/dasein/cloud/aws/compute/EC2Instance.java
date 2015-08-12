@@ -779,7 +779,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     @Override
     public @Nullable VirtualMachineProduct getProduct( @Nonnull String sizeId ) throws CloudException, InternalException {
         for( Architecture a : getCapabilities().listSupportedArchitectures() ) {
-            for( VirtualMachineProduct prd : listProducts(a) ) {
+            for( VirtualMachineProduct prd : listProducts(null, a) ) {
                 if( prd.getProviderProductId().equals(sizeId) ) {
                     return prd;
                 }
@@ -1192,8 +1192,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
         return products;
     }
 
-    @Override
-    public @Nonnull Iterable<VirtualMachineProduct> listProducts( VirtualMachineProductFilterOptions options, Architecture architecture ) throws InternalException, CloudException {
+    private @Nonnull Iterable<VirtualMachineProduct> listProducts( @Nullable VirtualMachineProductFilterOptions options, @Nullable Architecture architecture ) throws InternalException, CloudException {
         ProviderContext ctx = getProvider().getContext();
         if( ctx == null ) {
             throw new CloudException("No context was set for this request");
