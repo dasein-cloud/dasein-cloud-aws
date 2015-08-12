@@ -124,7 +124,7 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
 
     @Override
     public @Nonnull Requirement getDeviceIdOnAttachRequirement() throws InternalException, CloudException {
-        return Requirement.NONE;
+        return Requirement.REQUIRED;
     }
 
     @Override
