@@ -53,8 +53,6 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
 	static private final Logger logger = Logger.getLogger(EBSVolume.class);
 
     static private final String VOLUME_PRODUCT_IOPS = "io1";
-    static private final String VOLUME_PRODUCT_STANDARD = "standard";
-    static private final String VOLUME_PRODUCT_SSD = "gp2";
 
     private EBSVolumeCapabilities capabilities;
 
@@ -63,7 +61,7 @@ public class EBSVolume extends AbstractVolumeSupport<AWSCloud> {
 	}
 
 	@Override
-	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nonnull String device) throws InternalException, CloudException {
+	public void attach(@Nonnull String volumeId, @Nonnull String toServer, @Nullable String device) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "Volume.attach");
         try {
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), EC2Method.ATTACH_VOLUME);
