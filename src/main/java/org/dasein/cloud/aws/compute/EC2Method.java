@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
@@ -956,7 +957,8 @@ public class EC2Method {
         }
         finally {
             if( client != null ) {
-                client.getConnectionManager().shutdown();
+//                client.getConnectionManager().closeIdleConnections(1, TimeUnit.SECONDS);
+//                client.getConnectionManager().shutdown();
             }
             if( logger.isTraceEnabled() ) {
                 logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");

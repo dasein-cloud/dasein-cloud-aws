@@ -19,15 +19,13 @@
 
 package org.dasein.cloud.aws.network;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.VPNCapabilities;
 import org.dasein.cloud.network.VPNProtocol;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 
 /**
@@ -43,7 +41,6 @@ public class VPCGatewayCapabilities extends AbstractCapabilities<AWSCloud> imple
         super(provider);
     }
 
-    @Override
     public Requirement getVPNDataCenterConstraint() {
         return Requirement.NONE;
     }
@@ -52,5 +49,27 @@ public class VPCGatewayCapabilities extends AbstractCapabilities<AWSCloud> imple
     @Override
     public Iterable<VPNProtocol> listSupportedVPNProtocols() throws CloudException, InternalException {
         return Collections.singletonList(VPNProtocol.IPSEC1);
+    }
+
+    @Nonnull
+    @Override
+    public Requirement getVPNVLANConstraint() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public boolean supportsGateway() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean supportsVPNGateway() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getVpnVisibleScope() {
+        return VisibleScope.ACCOUNT_REGION;
     }
 }
