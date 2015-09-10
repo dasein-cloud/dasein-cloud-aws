@@ -526,40 +526,40 @@ public class EC2Method {
         }
         // VPN operations
         if( action.equals(CREATE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.CREATE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.CREATE_GATEWAY};
         }
         else if( action.equals(ATTACH_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.ATTACH};
+            return new ServiceAction[]{VpnSupport.ATTACH};
         }
         else if( action.equals(CREATE_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.CREATE_VPN};
+            return new ServiceAction[]{VpnSupport.CREATE_VPN};
         }
         else if( action.equals(DELETE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_VPN};
+            return new ServiceAction[]{VpnSupport.REMOVE_VPN};
         }
         else if( action.equals(DESCRIBE_CUSTOMER_GATEWAYS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY};
+            return new ServiceAction[]{VpnSupport.LIST_GATEWAY, VpnSupport.GET_GATEWAY};
         }
         else if( action.equals(DESCRIBE_VPN_CONNECTIONS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY, VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
+            return new ServiceAction[]{VpnSupport.LIST_GATEWAY, VpnSupport.GET_GATEWAY, VpnSupport.LIST_VPN, VpnSupport.GET_VPN};
         }
         else if( action.equals(DESCRIBE_VPN_GATEWAYS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
+            return new ServiceAction[]{VpnSupport.LIST_VPN, VpnSupport.GET_VPN};
         }
         else if( action.equals(CREATE_VPN_CONNECTION) ) {
-            return new ServiceAction[]{VPNSupport.CONNECT_GATEWAY};
+            return new ServiceAction[]{VpnSupport.CONNECT_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_CONNECTION) ) {
-            return new ServiceAction[]{VPNSupport.DISCONNECT_GATEWAY};
+            return new ServiceAction[]{VpnSupport.DISCONNECT_GATEWAY};
         }
         else if( action.equals(DETACH_INTERNET_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DETACH_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.DETACH};
+            return new ServiceAction[]{VpnSupport.DETACH};
         }
 
         // CloudWatch operations

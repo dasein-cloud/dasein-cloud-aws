@@ -22,7 +22,7 @@ package org.dasein.cloud.aws.network;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.network.AbstractNetworkServices;
 import org.dasein.cloud.network.DNSSupport;
-import org.dasein.cloud.network.VPNSupport;
+import org.dasein.cloud.network.VpnSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -75,7 +75,7 @@ public class EC2NetworkServices extends AbstractNetworkServices<AWSCloud> {
     }
 
     @Override
-    public @Nullable VPNSupport getVpnSupport() {
+    public @Nullable VpnSupport getVpnSupport() {
         return new VPCGateway(getProvider());
     }
 }
