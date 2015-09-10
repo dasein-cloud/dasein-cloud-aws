@@ -52,6 +52,11 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
         return true;
     }
 
+    @Override
+    public boolean supportsManagedPolicies() throws CloudException, InternalException {
+        return true;
+    }
+
     @Nullable
     @Override
     public String getConsoleUrl() throws CloudException, InternalException {
@@ -68,5 +73,11 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
     @Override
     public String getProviderTermForGroup(@Nonnull Locale locale) {
         return "group";
+    }
+
+    @Nonnull
+    @Override
+    public String getProviderTermForPolicy(@Nonnull Locale locale) {
+        return "policy";
     }
 }

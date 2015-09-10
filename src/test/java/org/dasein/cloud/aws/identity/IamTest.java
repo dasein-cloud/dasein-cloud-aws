@@ -113,4 +113,27 @@ public class IamTest {
             e.printStackTrace();
         }
     }
+
+    @Test
+    public void getPolicyTest() {
+        IAM identity = mock(IAM.class);
+        try {
+            Document doc = readFixture("get_policy.xml");
+
+            when(identity.invoke(eq(IAMMethod.GET_POLICY), anyMap()))
+                    .thenReturn(doc);
+            when(identity.getPolicy(anyString()))
+                    .thenCallRealMethod();
+            when(identity.toManagedPolicy(any(Node.class)))
+                    .thenCallRealMethod();
+
+            CloudPolicy policy = identity.getPolicy("ANPAIWMBCKSKIEE64ZLYK");
+            assertNotNull("Policy object should not be null", policy);
+            assertEquals(policy.getName(), "AdministratorAccess");
+            assertEquals(policy.getProviderPolicyId(), "arn:aws:iam::aws:policy/AdministratorAccess");
+        } catch (CloudException|InternalException e) {
+            e.printStackTrace();
+        }
+    }
+
 }

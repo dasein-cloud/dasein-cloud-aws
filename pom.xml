@@ -117,6 +117,13 @@
             <version>4.9</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>1.9.5</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -126,8 +133,8 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>2.0.2</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <source>1.7</source>
+                    <target>1.7</target>
                 </configuration>
             </plugin>
             <plugin>
@@ -196,10 +203,23 @@
                 <artifactId>maven-release-plugin</artifactId>
                 <version>2.1</version>
             </plugin>
+            <!-- unit tests -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>2.6</version>
+                <version>2.18.1</version>
+                <configuration>
+                    <excludes>
+                        <exclude>**/TestSuite.class</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+
+            <!-- integration tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>2.18.1</version>
                 <configuration>
                     <systemProperties>
                         <property>
@@ -216,11 +236,11 @@
                         </property>
                         <property>
                             <name>accessKeyShared</name>
-                            <value>${apiSharedKey}</value>
+                            <value>${accessKeyShared}</value>
                         </property>
                         <property>
                             <name>accessKeySecret</name>
-                            <value>${apiSecretKey}</value>
+                            <value>${accessKeySecret}</value>
                         </property>
                         <property>
                             <name>x509Cert</name>
@@ -246,23 +266,19 @@
                             <name>shareAccount</name>
                             <value>${test.shareAccount}</value>
                         </property>
-                        <property>
-                            <name>proxyHost</name>
-                            <value>${proxyHost}</value>
-                        </property>
-                        <property>
-                            <name>proxyPort</name>
-                            <value>${proxyPort}</value>
-                        </property>
-                        <property>
-                            <name>test.machineImage</name>
-                            <value>${test.machineImage}</value>
-                        </property>
                     </systemProperties>
                     <includes>
-                        <include>**/TestSuite.java</include>
+                        <include>**/TestSuite.class</include>
                     </includes>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <artifactId>maven-dependency-plugin</artifactId>
