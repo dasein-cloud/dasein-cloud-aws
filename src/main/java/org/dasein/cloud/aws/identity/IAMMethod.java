@@ -51,6 +51,7 @@ public class IAMMethod extends EC2Method {
     static public final String GET_USER               = "GetUser";
     static public final String GET_USER_POLICY        = "GetUserPolicy";
     static public final String GET_POLICY             = "GetPolicy";
+    static public final String GET_POLICY_VERSION     = "GetPolicyVersion";
     static public final String LIST_ACCESS_KEY        = "ListAccessKey";
     static public final String LIST_GROUP_POLICIES    = "ListGroupPolicies";
     static public final String LIST_GROUPS            = "ListGroups";
