@@ -172,7 +172,7 @@ public class IAMMethod extends EC2Method {
         return new ServiceAction[0];
     }
 
-    public IAMMethod(AWSCloud provider, Map<String,String> parameters) throws CloudException, InternalException {
+    public IAMMethod(AWSCloud provider, Map<String,String> parameters) throws InternalException {
         super("iam", provider, parameters);
     }
 

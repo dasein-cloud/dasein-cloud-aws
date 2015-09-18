@@ -98,13 +98,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             logger.debug("parameters=" + parameters);
         }
         IAMMethod method = new IAMMethod(getProvider(), parameters);
-        try {
-            return method.invoke();
-        }
-        catch( EC2Exception e ) {
-            logger.error(e.getSummary());
-            throw new CloudException(e);
-        }
+        return method.invoke();
     }
 
     @Override
@@ -578,7 +572,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             parameters.put("UserName", user.getUserName());
             parameters.put("PolicyName", policyName);
             Document doc = invoke(IAMMethod.GET_USER_POLICY, parameters);
-            NodeList blocks = doc.getElementsByTagName("ListPoliciesResult");
+            NodeList blocks = doc.getElementsByTagName("GetUserPolicyResult");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node policyNode = blocks.item(i);
 
@@ -1135,8 +1129,11 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             }
             Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
-            if( logger.isInfoEnabled() ) {
-                logger.info("Removing user " + providerUserId);
+            try {
+                invoke(IAMMethod.DELETE_LOGIN_PROFILE, parameters);
+            }
+            catch( EC2Exception e ) {
+                // ignore
             }
             invoke(IAMMethod.DELETE_USER, parameters);
         }
@@ -1467,11 +1464,16 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             String effect = (policyStatement.has("Effect") ? policyStatement.getString("Effect") : null);
             String action = (policyStatement.has("Action") ? policyStatement.getString("Action") : null);
             String resource = (policyStatement.has("Resource") ? policyStatement.getString("Resource") : null);
-            
             if( effect == null ) {
                 return null;
             }
             CloudPermission permission = (effect.equalsIgnoreCase("allow") ? CloudPermission.ALLOW : CloudPermission.DENY);
+            boolean exceptActions = false;
+            if( action == null ) {
+                action = policyStatement.optString("NotAction");
+                exceptActions = true;
+            }
+
             ServiceAction[] serviceActions = null;
             String resourceId = null;
             
@@ -1611,7 +1613,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             if( resource != null && !resource.equals("*") ) {
                 resourceId = resource;
             }
-            rules.add(CloudPolicyRule.getInstance(permission, serviceActions, resourceId));
+            rules.add(CloudPolicyRule.getInstance(permission, serviceActions, exceptActions, resourceId));
         }
         return CloudPolicy.getInstance(policyId, policyName, description, rules.toArray(new CloudPolicyRule[rules.size()]), managed);
     }

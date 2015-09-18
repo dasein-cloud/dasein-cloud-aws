@@ -37,6 +37,6 @@ import java.util.List;
  */
 public interface XmlStreamParser<T> {
 
-    List<T> parse(InputStream stream) throws IOException, CloudException, InternalException;
+    List<T> parse(InputStream stream) throws IOException, InternalException;
 
 }

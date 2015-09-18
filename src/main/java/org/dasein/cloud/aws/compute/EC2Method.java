@@ -594,10 +594,11 @@ public class EC2Method {
         this(EC2Method.SERVICE_ID, provider, parameters);
     }
 
-    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException {
         this(serviceId, provider.getContext().getRegionId(), provider, parameters);
     }
-    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+
+    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException {
         this.parameters = parameters;
         this.provider = provider;
         this.serviceId = serviceId;
@@ -616,7 +617,7 @@ public class EC2Method {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
-            throw new CloudException("Provider context is necessary for this request");
+            throw new InternalException("Provider context is necessary for this request");
         }
 //        parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
     }
