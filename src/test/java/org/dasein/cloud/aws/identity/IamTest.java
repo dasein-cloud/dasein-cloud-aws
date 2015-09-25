@@ -19,14 +19,13 @@
 
 package org.dasein.cloud.aws.identity;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.identity.CloudPolicy;
+import org.dasein.cloud.identity.ServiceAction;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -75,7 +74,7 @@ public class IamTest {
 //    }
 
     @Test
-    public void listPoliciesTest() {
+    public void listManagedPoliciesTest() {
         IAM identity = mock(IAM.class);
         try {
             Document doc1 = fixture("list_policies.xml");
@@ -84,14 +83,14 @@ public class IamTest {
             when(identity.invoke(eq(IAMMethod.LIST_POLICIES), anyMap()))
                     .thenReturn(doc1) // first page
                     .thenReturn(doc2); // second page
-            when(identity.listPolicies())
+            when(identity.listManagedPolicies(anyString()))
                     .thenCallRealMethod();
             when(identity.getPolicyVersion(anyString(), anyString(), anyString(), anyString()))
                     .thenCallRealMethod();
             when(identity.invoke(eq(IAMMethod.GET_POLICY_VERSION), anyMap()))
                     .thenReturn(fixture("get_policy_version.xml"));
 
-            Iterable<CloudPolicy> policies = identity.listPolicies();
+            Iterable<CloudPolicy> policies = identity.listManagedPolicies("AWS");
             assertNotNull("Policies list should not be null", policies);
             assertTrue("Policies list should not be empty", policies.iterator().hasNext());
             CloudPolicy policy = policies.iterator().next();
@@ -135,4 +134,39 @@ public class IamTest {
         }
     }
 
+    @Test
+    public void listServicesTest() {
+        IAM identity = mock(IAM.class);
+        try {
+            when(identity.listServices()).thenCallRealMethod();
+            when(identity.readServiceActionsYaml()).thenCallRealMethod();
+            Iterable<String> services = identity.listServices();
+            assertNotNull("Services iterable should not be null", services);
+            int count = 0;
+            for( String s : services ) {
+                ++count;
+            }
+            assertEquals("Number of services returned is incorrect", 2, count);
+        } catch (CloudException | InternalException e) {
+            fail("Unable to execute listServices() successfully: " + e.getMessage());
+        }
+    }
+
+    @Test
+    public void listServiceActionsTest() {
+        IAM identity = mock(IAM.class);
+        try {
+            when(identity.listServiceActions(anyString())).thenCallRealMethod();
+            when(identity.readServiceActionsYaml()).thenCallRealMethod();
+            Iterable<ServiceAction> serviceActions = identity.listServiceActions(null);
+            assertNotNull("Service actions iterable should not be null", serviceActions);
+            int count = 0;
+            for( ServiceAction s : serviceActions ) {
+                ++count;
+            }
+            assertEquals("Number of service actions returned is incorrect", 6, count);
+        } catch (CloudException | InternalException e) {
+            fail("Unable to execute listServices() successfully: " + e.getMessage());
+        }
+    }
 }

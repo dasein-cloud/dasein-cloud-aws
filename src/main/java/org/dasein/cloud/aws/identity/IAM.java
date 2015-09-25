@@ -28,28 +28,15 @@ import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.aws.network.ELBMethod;
 import org.dasein.cloud.aws.network.Route53Method;
-import org.dasein.cloud.aws.platform.CloudFrontMethod;
-import org.dasein.cloud.aws.platform.RDS;
-import org.dasein.cloud.aws.platform.SNS;        
-import org.dasein.cloud.aws.platform.SQS;
-import org.dasein.cloud.aws.platform.SimpleDB;
+import org.dasein.cloud.aws.platform.*;
 import org.dasein.cloud.aws.storage.S3Method;
-import org.dasein.cloud.compute.AutoScalingSupport;
-import org.dasein.cloud.compute.ComputeServices;
-import org.dasein.cloud.compute.MachineImageSupport;
-import org.dasein.cloud.compute.SnapshotSupport;
-import org.dasein.cloud.compute.VirtualMachineSupport;
-import org.dasein.cloud.compute.VolumeSupport;
+import org.dasein.cloud.compute.*;
 import org.dasein.cloud.identity.*;
 import org.dasein.cloud.network.DNSSupport;
 import org.dasein.cloud.network.FirewallSupport;
 import org.dasein.cloud.network.IpAddressSupport;
 import org.dasein.cloud.network.LoadBalancerSupport;
-import org.dasein.cloud.platform.CDNSupport;
-import org.dasein.cloud.platform.KeyValueDatabaseSupport;
-import org.dasein.cloud.platform.MQSupport;
-import org.dasein.cloud.platform.PushNotificationSupport;
-import org.dasein.cloud.platform.RelationalDatabaseSupport;
+import org.dasein.cloud.platform.*;
 import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.util.APITrace;
 import org.json.JSONArray;
@@ -58,6 +45,7 @@ import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -386,7 +374,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
                                 JSONObject stmt = new JSONObject(json);
                                 
                                 if( stmt.has("Statement") ) {
-                                    return toPolicy(policyName, policyName, "Inline policy for group "+group.getName(), stmt.getJSONArray("Statement"), false);
+                                    return toPolicy(policyName, policyName, "Inline policy for group "+group.getName(), stmt.getJSONArray("Statement"), CloudPolicyType.INLINE_POLICY, null, group.getProviderGroupId());
                                 }
                             }
                         }
@@ -539,7 +527,13 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
                             JSONObject stmt = new JSONObject(json);
 
                             if( stmt.has("Statement") ) {
-                                return toPolicy(policyArn, policyName, description, stmt.getJSONArray("Statement"), true);
+                                String[] arnParts = policyArn.split(":");
+                                String ownerAccount = arnParts[4];
+                                return toPolicy(policyArn, policyName, description, stmt.getJSONArray("Statement"),
+                                        ownerAccount.equalsIgnoreCase("aws") ?
+                                                CloudPolicyType.PROVIDER_MANAGED_POLICY :
+                                                CloudPolicyType.ACCOUNT_MANAGED_POLICY,
+                                        null, null);
                             }
                         }
                     }
@@ -587,7 +581,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
                             JSONObject stmt = new JSONObject(json);
 
                             if( stmt.has("Statement") ) {
-                                return toPolicy(policyName, policyName, "Inline policy for user "+user.getUserName(), stmt.getJSONArray("Statement"), false);
+                                return toPolicy(policyName, policyName, "Inline policy for user "+user.getUserName(), stmt.getJSONArray("Statement"), CloudPolicyType.INLINE_POLICY, user.getProviderUserId(), null);
                             }
                         }
                     }
@@ -701,8 +695,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         }
     }
 
-    @Override
-    public @Nonnull Iterable<CloudPolicy> listPoliciesForGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
+    protected @Nonnull List<CloudPolicy> listPoliciesForGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "IAM.listPoliciesForGroup");
         try {
             CloudGroup group = getGroup(providerGroupId);
@@ -745,7 +738,34 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         }
     }
 
-    public @Nonnull Iterable<CloudPolicy> listPolicies() throws CloudException, InternalException {
+    @Nonnull
+    @Override
+    public Iterable<CloudPolicy> listPolicies(@Nonnull CloudPolicyFilterOptions opts) throws CloudException, InternalException {
+        boolean includeAwsPolicies = Arrays.binarySearch(opts.getPolicyTypes(), CloudPolicyType.PROVIDER_MANAGED_POLICY) >= 0;
+        boolean includeLocalPolicies = Arrays.binarySearch(opts.getPolicyTypes(), CloudPolicyType.ACCOUNT_MANAGED_POLICY) >= 0;
+        boolean includeInlinePolicies = Arrays.binarySearch(opts.getPolicyTypes(), CloudPolicyType.INLINE_POLICY) >= 0;
+        List<CloudPolicy> policies = new ArrayList<>();
+        if( includeAwsPolicies || includeLocalPolicies ) {
+            if (includeAwsPolicies && includeLocalPolicies) {
+                policies.addAll(listManagedPolicies("All"));
+            } else if (includeAwsPolicies) {
+                policies.addAll(listManagedPolicies("AWS"));
+            } else if (includeLocalPolicies) {
+                policies.addAll(listManagedPolicies("Local"));
+            }
+        }
+        if( includeInlinePolicies ) {
+            if( opts.getProviderGroupId() != null ) {
+                policies.addAll(listPoliciesForGroup(opts.getProviderGroupId()));
+            }
+            if( opts.getProviderUserId() != null ) {
+                policies.addAll(listPoliciesForUser(opts.getProviderUserId()));
+            }
+        }
+        return policies;
+    }
+
+    protected @Nonnull List<CloudPolicy> listManagedPolicies(String scope) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "IAM.listPolicies");
         try {
             List<CloudPolicy> policies = new ArrayList();
@@ -753,7 +773,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
 
             do {
                 Map<String, String> parameters = new HashMap<>();
-                parameters.put("Scope", "AWS"); // only AWS-managed policies
+                parameters.put("Scope", scope);
                 if( marker != null ) {
                     parameters.put("Marker", marker);
                 }
@@ -816,8 +836,36 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         }
     }
 
+
+    protected Map<String, List<String>> readServiceActionsYaml() throws InternalException {
+        return (Map<String, List<String>>) new Yaml().loadAs(IAM.class.getResourceAsStream("/org/dasein/cloud/aws/serviceActions.yaml"), Map.class);
+    }
+
     @Override
-    public @Nonnull Iterable<CloudPolicy> listPoliciesForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
+    public @Nonnull Iterable<String> listServices() throws CloudException, InternalException {
+        return readServiceActionsYaml().keySet();
+    }
+
+    @Override
+    public @Nonnull Iterable<ServiceAction> listServiceActions(@Nullable String forService) throws CloudException, InternalException {
+        Map<String, List<String>> map = readServiceActionsYaml();
+        List<ServiceAction> serviceActions = new ArrayList<>();
+        if (forService == null) {
+            for (String key : map.keySet()) {
+                for (String action : map.get(key)) {
+                    serviceActions.add(new ServiceAction(key + ":" + action));
+                }
+            }
+        }
+        else {
+            for (String action : map.get(forService)) {
+                serviceActions.add(new ServiceAction(forService + ":" + action));
+            }
+        }
+        return serviceActions;
+    }
+
+    protected @Nonnull List<CloudPolicy> listPoliciesForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
         APITrace.begin(getProvider(), "IAM.listPoliciesForUser");
         try {
             CloudUser user = getUser(providerUserId);
@@ -1456,7 +1504,9 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         return group;
     }
 
-    private @Nullable CloudPolicy toPolicy(@Nonnull String policyId, @Nonnull String policyName, @Nullable String description, @Nonnull JSONArray policyStatements, boolean managed) throws JSONException {
+    private @Nullable CloudPolicy toPolicy(@Nonnull String policyId, @Nonnull String policyName, @Nullable String description,
+                                           @Nonnull JSONArray policyStatements, @Nonnull CloudPolicyType type,
+                                           @Nullable String providerUserId, @Nullable String providerGroupId) throws JSONException {
         List<CloudPolicyRule> rules = new ArrayList<>();
         
         for( int i=0; i<policyStatements.length(); i++ ) {
@@ -1615,7 +1665,7 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             }
             rules.add(CloudPolicyRule.getInstance(permission, serviceActions, exceptActions, resourceId));
         }
-        return CloudPolicy.getInstance(policyId, policyName, description, rules.toArray(new CloudPolicyRule[rules.size()]), managed);
+        return CloudPolicy.getInstance(policyId, policyName, description, rules.toArray(new CloudPolicyRule[rules.size()]), type, providerUserId, providerGroupId);
     }
     
     private @Nullable CloudUser toUser(@Nullable Node node) throws CloudException, InternalException {

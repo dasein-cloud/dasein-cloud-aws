@@ -23,10 +23,12 @@ import org.dasein.cloud.AbstractCapabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.aws.AWSCloud;
+import org.dasein.cloud.identity.CloudPolicyType;
 import org.dasein.cloud.identity.IdentityAndAccessCapabilities;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.Locale;
 
 /**
@@ -52,11 +54,6 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
         return true;
     }
 
-    @Override
-    public boolean supportsManagedPolicies() throws CloudException, InternalException {
-        return true;
-    }
-
     @Nullable
     @Override
     public String getConsoleUrl() throws CloudException, InternalException {
@@ -79,5 +76,40 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
     @Override
     public String getProviderTermForPolicy(@Nonnull Locale locale) {
         return "policy";
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<CloudPolicyType> listSupportedPolicyTypes() throws CloudException, InternalException {
+        return Arrays.asList(
+                CloudPolicyType.ACCOUNT_MANAGED_POLICY,
+                CloudPolicyType.PROVIDER_MANAGED_POLICY,
+                CloudPolicyType.INLINE_POLICY
+        );
+    }
+
+    @Override
+    public int getMaximumPoliciesPerUser() throws CloudException, InternalException {
+        return 10;
+    }
+
+    @Override
+    public int getMaximumPoliciesPerGroup() throws CloudException, InternalException {
+        return 10;
+    }
+
+    @Override
+    public int getMaximumGroupsPerUser() throws CloudException, InternalException {
+        return 100;
+    }
+
+    @Override
+    public int getMaximumUsers() throws CloudException, InternalException {
+        return 1000;
+    }
+
+    @Override
+    public int getMaximumGroups() throws CloudException, InternalException {
+        return 1000;
     }
 }

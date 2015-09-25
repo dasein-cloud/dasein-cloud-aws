@@ -958,8 +958,8 @@ public class EC2Method {
         }
         finally {
             if( client != null ) {
-//                client.getConnectionManager().closeIdleConnections(1, TimeUnit.SECONDS);
-//                client.getConnectionManager().shutdown();
+                client.getConnectionManager().closeIdleConnections(1, TimeUnit.SECONDS);
+                client.getConnectionManager().shutdown();
             }
             if( logger.isTraceEnabled() ) {
                 logger.trace("EXIT - " + EC2Method.class.getName() + ".invoke()");

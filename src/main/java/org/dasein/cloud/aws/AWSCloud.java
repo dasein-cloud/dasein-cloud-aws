@@ -1433,16 +1433,11 @@ public class AWSCloud extends AbstractCloud {
         parameters.put(key, value.toString());
     }
 
-    private DefaultHttpClient httpClient;
-
     public @Nonnull HttpClient getClient() throws InternalException {
         return getClient(false);
     }
 
     public @Nonnull HttpClient getClient(boolean multipart) throws InternalException {
-        if( httpClient != null ) {
-            return httpClient;
-        }
         ProviderContext ctx = getContext();
         if( ctx == null ) {
             throw new InternalException("No context was specified for this request");
@@ -1470,7 +1465,7 @@ public class AWSCloud extends AbstractCloud {
                 );
             }
         }
-        httpClient = new DefaultHttpClient(params);
+        DefaultHttpClient httpClient = new DefaultHttpClient(params);
         httpClient.addRequestInterceptor(new HttpRequestInterceptor() {
             public void process(
                     final HttpRequest request,
