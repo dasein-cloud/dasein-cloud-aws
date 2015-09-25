@@ -1,0 +1,13 @@
+<GetPolicyVersionResponse xmlns="https://iam.amazonaws.com/doc/2010-05-08/">
+    <GetPolicyVersionResult>
+        <PolicyVersion>
+            <VersionId>v1</VersionId>
+            <IsDefaultVersion>true</IsDefaultVersion>
+            <Document>%7B%0A%20%20%22Version%22%3A%20%222012-10-17%22%2C%0A%20%20%22Statement%22%3A%20%5B%0A%20%20%20%20%7B%0A%20%20%20%20%20%20%22Effect%22%3A%20%22Allow%22%2C%0A%20%20%20%20%20%20%22Action%22%3A%20%22%2A%22%2C%0A%20%20%20%20%20%20%22Resource%22%3A%20%22%2A%22%0A%20%20%20%20%7D%0A%20%20%5D%0A%7D</Document>
+            <CreateDate>2015-02-06T18:39:46Z</CreateDate>
+        </PolicyVersion>
+    </GetPolicyVersionResult>
+    <ResponseMetadata>
+        <RequestId>ac22fbfa-5ac1-11e5-b968-83180be162d5</RequestId>
+    </ResponseMetadata>
+</GetPolicyVersionResponse>

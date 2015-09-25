@@ -1,0 +1,9 @@
+ec2:
+- AcceptVpcPeeringConnection
+- AllocateAddress
+- AssignPrivateIpAddresses
+
+iam:
+- AddClientIDToOpenIDConnectProvider
+- AddRoleToInstanceProfile
+- AddUserToGroup

@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
@@ -525,40 +526,40 @@ public class EC2Method {
         }
         // VPN operations
         if( action.equals(CREATE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.CREATE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.CREATE_GATEWAY};
         }
         else if( action.equals(ATTACH_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.ATTACH};
+            return new ServiceAction[]{VpnSupport.ATTACH};
         }
         else if( action.equals(CREATE_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.CREATE_VPN};
+            return new ServiceAction[]{VpnSupport.CREATE_VPN};
         }
         else if( action.equals(DELETE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_VPN};
+            return new ServiceAction[]{VpnSupport.REMOVE_VPN};
         }
         else if( action.equals(DESCRIBE_CUSTOMER_GATEWAYS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY};
+            return new ServiceAction[]{VpnSupport.LIST_GATEWAY, VpnSupport.GET_GATEWAY};
         }
         else if( action.equals(DESCRIBE_VPN_CONNECTIONS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY, VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
+            return new ServiceAction[]{VpnSupport.LIST_GATEWAY, VpnSupport.GET_GATEWAY, VpnSupport.LIST_VPN, VpnSupport.GET_VPN};
         }
         else if( action.equals(DESCRIBE_VPN_GATEWAYS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
+            return new ServiceAction[]{VpnSupport.LIST_VPN, VpnSupport.GET_VPN};
         }
         else if( action.equals(CREATE_VPN_CONNECTION) ) {
-            return new ServiceAction[]{VPNSupport.CONNECT_GATEWAY};
+            return new ServiceAction[]{VpnSupport.CONNECT_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_CONNECTION) ) {
-            return new ServiceAction[]{VPNSupport.DISCONNECT_GATEWAY};
+            return new ServiceAction[]{VpnSupport.DISCONNECT_GATEWAY};
         }
         else if( action.equals(DETACH_INTERNET_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DETACH_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.DETACH};
+            return new ServiceAction[]{VpnSupport.DETACH};
         }
 
         // CloudWatch operations
@@ -593,10 +594,11 @@ public class EC2Method {
         this(EC2Method.SERVICE_ID, provider, parameters);
     }
 
-    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException {
         this(serviceId, provider.getContext().getRegionId(), provider, parameters);
     }
-    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+
+    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException {
         this.parameters = parameters;
         this.provider = provider;
         this.serviceId = serviceId;
@@ -615,7 +617,7 @@ public class EC2Method {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
-            throw new CloudException("Provider context is necessary for this request");
+            throw new InternalException("Provider context is necessary for this request");
         }
 //        parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
     }
@@ -956,6 +958,7 @@ public class EC2Method {
         }
         finally {
             if( client != null ) {
+                client.getConnectionManager().closeIdleConnections(1, TimeUnit.SECONDS);
                 client.getConnectionManager().shutdown();
             }
             if( logger.isTraceEnabled() ) {

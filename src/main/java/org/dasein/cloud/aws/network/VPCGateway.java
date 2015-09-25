@@ -23,8 +23,6 @@ import org.apache.http.HttpStatus;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.Requirement;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
@@ -38,42 +36,31 @@ import org.w3c.dom.NodeList;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.TreeSet;
+import java.util.*;
 
 @SuppressWarnings("UnusedDeclaration")
-public class VPCGateway implements VPNSupport {
+public class VPCGateway extends AbstractVpnSupport<AWSCloud> {
     Logger logger = AWSCloud.getLogger(VPCGateway.class);
 
-    private AWSCloud provider;
     private VPCGatewayCapabilities capabilities;
     
-    public VPCGateway(@Nonnull AWSCloud provider) { this.provider = provider; }
+    public VPCGateway(@Nonnull AWSCloud provider) { super(provider); }
     
     @Override
-    public void attachToVLAN(@Nonnull String providerVpnId, @Nonnull String providerVlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "attachVPNToVLAN");
+    public void attachToVlan(@Nonnull String providerVpnId, @Nonnull String providerVlanId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "attachVPNToVLAN");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.ATTACH_VPN_GATEWAY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.ATTACH_VPN_GATEWAY);
             EC2Method method;
 
             parameters.put("VpcId", providerVlanId);
             parameters.put("VpnGatewayId", providerVpnId);
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
                 throw new CloudException(e);
             }
         }
@@ -84,10 +71,10 @@ public class VPCGateway implements VPNSupport {
 
     @Override
     public void connectToGateway(@Nonnull String providerVpnId, @Nonnull String toGatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "connectVPNToGateway");
+        APITrace.begin(getProvider(), "connectVPNToGateway");
         try {
-            VPNGateway gateway = getGateway(toGatewayId);
-            VPN vpn = getVPN(providerVpnId);
+            VpnGateway gateway = getGateway(toGatewayId);
+            Vpn vpn = getVpn(providerVpnId);
 
             if( gateway == null ) {
                 throw new CloudException("No such VPN gateway: " + toGatewayId);
@@ -98,24 +85,19 @@ public class VPCGateway implements VPNSupport {
             if( !gateway.getProtocol().equals(vpn.getProtocol()) ) {
                 throw new CloudException("VPN protocol mismatch between VPN and gateway: " + vpn.getProtocol() + " vs " + gateway.getProtocol());
             }
-            ProviderContext ctx = provider.getContext();
 
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPN_CONNECTION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.CREATE_VPN_CONNECTION);
             EC2Method method;
 
             parameters.put("Type", getAWSProtocol(vpn.getProtocol()));
             parameters.put("CustomerGatewayId", gateway.getProviderVpnGatewayId());
             parameters.put("VpnGatewayId", vpn.getProviderVpnId());
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
                 throw new CloudException(e);
             }
         }
@@ -125,34 +107,28 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public @Nonnull VPN createVPN(@Nullable String dataCenterId, @Nonnull String name, @Nonnull String description, @Nonnull VPNProtocol protocol) throws CloudException, InternalException {
-        APITrace.begin(provider, "createVPN");
+    public @Nonnull Vpn createVpn(@Nonnull VpnCreateOptions vpnLaunchOptions) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "createVPN");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_VPN_GATEWAY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.CREATE_VPN_GATEWAY);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            parameters.put("Type", getAWSProtocol(protocol));
-            method = new EC2Method(provider, parameters);
+            parameters.put("Type", getAWSProtocol(vpnLaunchOptions.getProtocol()));
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
                 throw new CloudException(e);
             }
             blocks = doc.getElementsByTagName("vpnGateway");
 
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
-                VPN vpn = toVPN(ctx, item);
+                Vpn vpn = toVPN(item);
 
                 if( vpn != null ) {
                     return vpn;
@@ -166,30 +142,25 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public @Nonnull VPNGateway createVPNGateway(@Nonnull String endpoint, @Nonnull String name, @Nonnull String description, @Nonnull VPNProtocol protocol, @Nonnull String bgpAsn) throws CloudException, InternalException {
-        APITrace.begin(provider, "createVPNGateway");
+    public @Nonnull VpnGateway createVpnGateway(@Nonnull VpnGatewayCreateOptions opt) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "createVPNGateway");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.CREATE_CUSTOMER_GATEWAY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.CREATE_CUSTOMER_GATEWAY);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            parameters.put("Type", getAWSProtocol(protocol));
-            parameters.put("IpAddress", endpoint);
-            parameters.put("BgpAsn", bgpAsn);
-            method = new EC2Method(provider, parameters);
+            parameters.put("Type", getAWSProtocol(opt.getProtocol()));
+            parameters.put("IpAddress", opt.getEndpoint());
+            parameters.put("BgpAsn", opt.getBgpAsn());
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
                 if( logger.isDebugEnabled() ) {
-                    e.printStackTrace();
+                    logger.debug("createVpnGateway failed", e);
                 }
                 throw new CloudException(e);
             }
@@ -197,7 +168,7 @@ public class VPCGateway implements VPNSupport {
 
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
-                VPNGateway gateway = toGateway(ctx, item);
+                VpnGateway gateway = toGateway(item);
 
                 if( gateway != null ) {
                     return gateway;
@@ -211,14 +182,14 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public void deleteVPN(@Nonnull String providerVpnId) throws CloudException, InternalException {
-        APITrace.begin(provider, "deleteVPN");
+    public void deleteVpn(@Nonnull String providerVpnId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "deleteVPN");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_VPN_GATEWAY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DELETE_VPN_GATEWAY);
             EC2Method method;
 
             parameters.put("VpnGatewayId", providerVpnId);
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -233,14 +204,14 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public void deleteVPNGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "deleteVPNGateway");
+    public void deleteVpnGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "deleteVPNGateway");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_CUSTOMER_GATEWAY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DELETE_CUSTOMER_GATEWAY);
             EC2Method method;
 
             parameters.put("CustomerGatewayId", gatewayId);
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
@@ -255,26 +226,20 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public void detachFromVLAN(@Nonnull String providerVpnId, @Nonnull String providerVlanId) throws CloudException, InternalException {
-        APITrace.begin(provider, "detachVPNFromVLAN");
+    public void detachFromVlan(@Nonnull String providerVpnId, @Nonnull String providerVlanId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "detachVPNFromVLAN");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DETACH_VPN_GATEWAY);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DETACH_VPN_GATEWAY);
             EC2Method method;
 
             parameters.put("VpcId", providerVlanId);
             parameters.put("VpnGatewayId", providerVpnId);
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
                 throw new CloudException(e);
             }
         }
@@ -285,10 +250,10 @@ public class VPCGateway implements VPNSupport {
 
     @Override
     public void disconnectFromGateway(@Nonnull String vpnId, @Nonnull String gatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "disconnectVPNFromGateway");
+        APITrace.begin(getProvider(), "disconnectVPNFromGateway");
         try {
-            VPNGateway gateway = getGateway(gatewayId);
-            VPN vpn = getVPN(vpnId);
+            VpnGateway gateway = getGateway(gatewayId);
+            Vpn vpn = getVpn(vpnId);
 
             if( gateway == null ) {
                 throw new CloudException("No such VPN gateway: " + gatewayId);
@@ -298,7 +263,7 @@ public class VPCGateway implements VPNSupport {
             }
             String connectionId = null;
 
-            for( VPNConnection c : listConnections(vpnId, null) ) {
+            for( VpnConnection c : listConnections(vpnId, null) ) {
                 if( gatewayId.equals(c.getProviderGatewayId()) ) {
                     connectionId = c.getProviderVpnConnectionId();
                     break;
@@ -308,22 +273,16 @@ public class VPCGateway implements VPNSupport {
                 logger.warn("Attempt to disconnect a VPN from a gateway when there was no connection in the cloud");
                 return;
             }
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DELETE_VPN_CONNECTION);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DELETE_VPN_CONNECTION);
             EC2Method method;
 
             parameters.put("VpnConnectionId", connectionId);
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
-                e.printStackTrace();
                 throw new CloudException(e);
             }
         }
@@ -334,25 +293,25 @@ public class VPCGateway implements VPNSupport {
 
     @Nonnull
     @Override
-    public VPNCapabilities getCapabilities() {
+    public VpnCapabilities getCapabilities() {
         if( capabilities == null ) {
-            capabilities = new VPCGatewayCapabilities(provider);
+            capabilities = new VPCGatewayCapabilities(getProvider());
         }
         return capabilities;
     }
 
-    private String getAWSProtocol(VPNProtocol protocol) throws CloudException {
-        if( protocol.equals(VPNProtocol.IPSEC1) ) {
+    private String getAWSProtocol(VpnProtocol protocol) throws CloudException {
+        if( protocol.equals(VpnProtocol.IPSEC1) ) {
             return "ipsec.1";
         }
         throw new CloudException("AWS does not support " + protocol);
     }
 
     @Override
-    public @Nullable VPNGateway getGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getGateway");
+    public @Nullable VpnGateway getGateway(@Nonnull String gatewayId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "getGateway");
         try {
-            Iterator<VPNGateway> it = listGateways(gatewayId, null).iterator();
+            Iterator<VpnGateway> it = listGateways(gatewayId, null).iterator();
 
             if( it.hasNext() ) {
                 return it.next();
@@ -365,10 +324,10 @@ public class VPCGateway implements VPNSupport {
     }
     
     @Override
-    public @Nullable VPN getVPN(@Nonnull String providerVpnId) throws CloudException, InternalException {
-        APITrace.begin(provider, "getVPN");
+    public @Nullable Vpn getVpn(@Nonnull String providerVpnId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "getVPN");
         try {
-            Iterator<VPN> it = listVPNs(providerVpnId).iterator();
+            Iterator<Vpn> it = listVpns(providerVpnId).iterator();
         
             return (it.hasNext() ? it.next() : null);
         }
@@ -378,18 +337,13 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public Requirement getVPNDataCenterConstraint() throws CloudException, InternalException {
-        return getCapabilities().getVPNDataCenterConstraint();
-    }
-
-    @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "isSubscribedVPCGateway");
+        APITrace.begin(getProvider(), "isSubscribedVPCGateway");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
             EC2Method method;
 
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 method.invoke();
                 return true;
@@ -404,7 +358,6 @@ public class VPCGateway implements VPNSupport {
                     return false;
                 }
                 logger.error(e.getSummary());
-                e.printStackTrace();
                 throw new CloudException(e);
             }
         }
@@ -414,19 +367,14 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public @Nonnull Iterable<VPNConnection> listGatewayConnections(@Nonnull String toGatewayId) throws CloudException, InternalException {
+    public @Nonnull Iterable<VpnConnection> listGatewayConnections(@Nonnull String toGatewayId) throws CloudException, InternalException {
         return listConnections(null, toGatewayId);
     }
 
-    private @Nonnull Iterable<VPNConnection> listConnections(@Nullable String vpnId, @Nullable String gatewayId) throws CloudException, InternalException {
-        APITrace.begin(provider, "listVPCConnections");
+    private @Nonnull Iterable<VpnConnection> listConnections(@Nullable String vpnId, @Nullable String gatewayId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "listVPCConnections");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPN_CONNECTIONS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DESCRIBE_VPN_CONNECTIONS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -439,7 +387,7 @@ public class VPCGateway implements VPNSupport {
                 parameters.put("Filter.1.Name", "vpn-gateway-id");
                 parameters.put("Filter.1.Value.1", vpnId);
             }
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -454,12 +402,12 @@ public class VPCGateway implements VPNSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            ArrayList<VPNConnection> list = new ArrayList<VPNConnection>();
+            List<VpnConnection> list = new ArrayList();
 
             blocks = doc.getElementsByTagName("item");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
-                VPNConnection c = toConnection(ctx, item);
+                VpnConnection c = toConnection(item);
 
                 if( c != null ) {
                     list.add(c);
@@ -475,19 +423,14 @@ public class VPCGateway implements VPNSupport {
 
     @Override
     public @Nonnull Iterable<ResourceStatus> listGatewayStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listVPCGatewayStatus");
+        APITrace.begin(getProvider(), "listVPCGatewayStatus");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -502,7 +445,7 @@ public class VPCGateway implements VPNSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            List<ResourceStatus> list = new ArrayList();
 
             blocks = doc.getElementsByTagName("item");
             for( int i=0; i<blocks.getLength(); i++ ) {
@@ -520,19 +463,14 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public @Nonnull Iterable<VPNGateway> listGateways() throws CloudException, InternalException {
+    public @Nonnull Iterable<VpnGateway> listGateways() throws CloudException, InternalException {
         return listGateways(null, null);
     }
     
-    private @Nonnull Iterable<VPNGateway> listGateways(@Nullable String gatewayId, @Nullable String bgpAsn) throws CloudException, InternalException {
-        APITrace.begin(provider, "listVPCGateways");
+    private @Nonnull Iterable<VpnGateway> listGateways(@Nullable String gatewayId, @Nullable String bgpAsn) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "listVPCGateways");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DESCRIBE_CUSTOMER_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -545,7 +483,7 @@ public class VPCGateway implements VPNSupport {
                 parameters.put("Filter.1.Name", "bgp-asn");
                 parameters.put("Filter.1.Value.1", bgpAsn);
             }
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -560,12 +498,12 @@ public class VPCGateway implements VPNSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            ArrayList<VPNGateway> list = new ArrayList<VPNGateway>();
+            List<VpnGateway> list = new ArrayList();
 
             blocks = doc.getElementsByTagName("item");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
-                VPNGateway gw = toGateway(ctx, item);
+                VpnGateway gw = toGateway(item);
 
                 if( gw != null ) {
                     list.add(gw);
@@ -579,35 +517,25 @@ public class VPCGateway implements VPNSupport {
     }
     
     @Override
-    public @Nonnull Iterable<VPNGateway> listGatewaysWithBgpAsn(@Nonnull String bgpAsn) throws CloudException, InternalException {
+    public @Nonnull Iterable<VpnGateway> listGatewaysWithBgpAsn(@Nonnull String bgpAsn) throws CloudException, InternalException {
         return listGateways(null, bgpAsn);
     }
 
     @Override
-    public @Nonnull Iterable<VPNConnection> listVPNConnections(@Nonnull String toVpnId) throws CloudException, InternalException {
+    public @Nonnull Iterable<VpnConnection> listVpnConnections(@Nonnull String toVpnId) throws CloudException, InternalException {
         return listConnections(toVpnId, null);
     }
 
     @Override
-    public @Nonnull Iterable<VPNProtocol> listSupportedVPNProtocols() throws CloudException, InternalException {
-        return getCapabilities().listSupportedVPNProtocols();
-    }
-
-    @Override
-    public @Nonnull Iterable<ResourceStatus> listVPNStatus() throws CloudException, InternalException {
-        APITrace.begin(provider, "listVPNStatus");
+    public @Nonnull Iterable<ResourceStatus> listVpnStatus() throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "listVPNStatus");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPN_GATEWAYS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DESCRIBE_VPN_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
 
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -622,7 +550,7 @@ public class VPCGateway implements VPNSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            ArrayList<ResourceStatus> list = new ArrayList<ResourceStatus>();
+            List<ResourceStatus> list = new ArrayList();
 
             blocks = doc.getElementsByTagName("item");
             for( int i=0; i<blocks.getLength(); i++ ) {
@@ -640,19 +568,14 @@ public class VPCGateway implements VPNSupport {
     }
 
     @Override
-    public @Nonnull Iterable<VPN> listVPNs() throws CloudException, InternalException {
-        return listVPNs(null);
+    public @Nonnull Iterable<Vpn> listVpns() throws CloudException, InternalException {
+        return listVpns(null);
     }
 
-    private @Nonnull Iterable<VPN> listVPNs(@Nullable String vpnId) throws CloudException, InternalException {
-        APITrace.begin(provider, "listVPNs");
+    private @Nonnull Iterable<Vpn> listVpns(@Nullable String vpnId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "listVpns");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                throw new CloudException("No context was configured");
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), ELBMethod.DESCRIBE_VPN_GATEWAYS);
+            Map<String,String> parameters = getProvider().getStandardParameters(getContext(), ELBMethod.DESCRIBE_VPN_GATEWAYS);
             EC2Method method;
             NodeList blocks;
             Document doc;
@@ -660,7 +583,7 @@ public class VPCGateway implements VPNSupport {
             if( vpnId != null ) {
                 parameters.put("VpnGatewayId.1", vpnId);
             }
-            method = new EC2Method(provider, parameters);
+            method = new EC2Method(getProvider(), parameters);
             try {
                 doc = method.invoke();
             }
@@ -675,12 +598,12 @@ public class VPCGateway implements VPNSupport {
                 logger.error(e.getSummary());
                 throw new CloudException(e);
             }
-            ArrayList<VPN> list = new ArrayList<VPN>();
+            List<Vpn> list = new ArrayList();
 
             blocks = doc.getElementsByTagName("item");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 Node item = blocks.item(i);
-                VPN vpn = toVPN(ctx, item);
+                Vpn vpn = toVPN(item);
 
                 if( vpn != null ) {
                     list.add(vpn);
@@ -695,45 +618,45 @@ public class VPCGateway implements VPNSupport {
 
     @Override
     public @Nonnull String[] mapServiceAction(@Nonnull ServiceAction action) {
-        if( action.equals(VPNSupport.ANY) ) {
+        if( action.equals(VpnSupport.ANY) ) {
             return new String[] { EC2Method.EC2_PREFIX + "*" };
         }
-        else if( action.equals(VPNSupport.ATTACH) ) {
+        else if( action.equals(VpnSupport.ATTACH) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.ATTACH_VPN_GATEWAY };
         }
-        else if( action.equals(VPNSupport.CREATE_GATEWAY) ) {
+        else if( action.equals(VpnSupport.CREATE_GATEWAY) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_CUSTOMER_GATEWAY };
         }
-        else if( action.equals(VPNSupport.CREATE_VPN) ) {
+        else if( action.equals(VpnSupport.CREATE_VPN) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.CREATE_VPN_GATEWAY };
         }
-        else if( action.equals(VPNSupport.GET_GATEWAY) || action.equals(VPNSupport.LIST_GATEWAY) ) {
+        else if( action.equals(VpnSupport.GET_GATEWAY) || action.equals(VpnSupport.LIST_GATEWAY) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_CUSTOMER_GATEWAYS, EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_VPN_CONNECTIONS };
         }
-        else if( action.equals(VPNSupport.GET_VPN) || action.equals(VPNSupport.LIST_VPN) ) {
+        else if( action.equals(VpnSupport.GET_VPN) || action.equals(VpnSupport.LIST_VPN) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_VPN_GATEWAYS, EC2Method.EC2_PREFIX + EC2Method.DESCRIBE_VPN_CONNECTIONS };
         }
-        else if( action.equals(VPNSupport.REMOVE_GATEWAY) ) {
+        else if( action.equals(VpnSupport.REMOVE_GATEWAY) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DELETE_CUSTOMER_GATEWAY };
         }
-        else if( action.equals(VPNSupport.REMOVE_VPN) ) {
+        else if( action.equals(VpnSupport.REMOVE_VPN) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DELETE_VPN_GATEWAY };
         }
-        else if( action.equals(VPNSupport.DETACH) ) {
+        else if( action.equals(VpnSupport.DETACH) ) {
             return new String[] { EC2Method.EC2_PREFIX + EC2Method.DETACH_VPN_GATEWAY };
         }
         return new String[0];
     }
     
-    private @Nullable VPNConnection toConnection(@SuppressWarnings("UnusedParameters") @Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable VpnConnection toConnection(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
 
         NodeList attributes = node.getChildNodes();
-        VPNConnection connection = new VPNConnection();
+        VpnConnection connection = new VpnConnection();
 
-        connection.setCurrentState(VPNConnectionState.PENDING);
+        connection.setCurrentState(VpnConnectionState.PENDING);
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attr = attributes.item(i);
             String nodeName = attr.getNodeName();
@@ -754,16 +677,16 @@ public class VPCGateway implements VPNSupport {
                 String state = attr.getFirstChild().getNodeValue().trim();
 
                 if( state.equalsIgnoreCase("available") ) {
-                    connection.setCurrentState(VPNConnectionState.AVAILABLE);
+                    connection.setCurrentState(VpnConnectionState.AVAILABLE);
                 }
                 else if( state.equalsIgnoreCase("deleting") ) {
-                    connection.setCurrentState(VPNConnectionState.DELETING);
+                    connection.setCurrentState(VpnConnectionState.DELETING);
                 }
                 else if( state.equalsIgnoreCase("deleted") ) {
-                    connection.setCurrentState(VPNConnectionState.DELETED);
+                    connection.setCurrentState(VpnConnectionState.DELETED);
                 }
                 else if( state.equalsIgnoreCase("pending") ) {
-                    connection.setCurrentState(VPNConnectionState.PENDING);
+                    connection.setCurrentState(VpnConnectionState.PENDING);
                 }
                 else {
                     logger.warn("DEBUG: Unknown VPN connection state: " + state);
@@ -773,14 +696,14 @@ public class VPCGateway implements VPNSupport {
                 String t = attr.getFirstChild().getNodeValue().trim();
 
                 if( t.equalsIgnoreCase("ipsec.1") ) {
-                    connection.setProtocol(VPNProtocol.IPSEC1);
+                    connection.setProtocol(VpnProtocol.IPSEC1);
                 }
                 else if( t.equalsIgnoreCase("openvpn") ) {
-                    connection.setProtocol(VPNProtocol.OPEN_VPN);
+                    connection.setProtocol(VpnProtocol.OPEN_VPN);
                 }
                 else {
                     logger.warn("DEBUG: Unknown VPN connection type: " + t);
-                    connection.setProtocol(VPNProtocol.IPSEC1);
+                    connection.setProtocol(VpnProtocol.IPSEC1);
                 }
             }
         }
@@ -790,17 +713,17 @@ public class VPCGateway implements VPNSupport {
         return connection;
     }
 
-    private @Nullable VPNGateway toGateway(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable VpnGateway toGateway(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
 
         NodeList attributes = node.getChildNodes();
-        VPNGateway gateway = new VPNGateway();
+        VpnGateway gateway = new VpnGateway();
         
-        gateway.setProviderOwnerId(ctx.getAccountNumber());
-        gateway.setProviderRegionId(ctx.getRegionId());
-        gateway.setCurrentState(VPNGatewayState.PENDING);
+        gateway.setProviderOwnerId(getContext().getAccountNumber());
+        gateway.setProviderRegionId(getContext().getRegionId());
+        gateway.setCurrentState(VpnGatewayState.PENDING);
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attr = attributes.item(i);
             String nodeName = attr.getNodeName();
@@ -812,16 +735,16 @@ public class VPCGateway implements VPNSupport {
                 String state = attr.getFirstChild().getNodeValue().trim();
                 
                 if( state.equalsIgnoreCase("available") ) {
-                    gateway.setCurrentState(VPNGatewayState.AVAILABLE);
+                    gateway.setCurrentState(VpnGatewayState.AVAILABLE);
                 }
                 else if( state.equalsIgnoreCase("deleting") ) {
-                    gateway.setCurrentState(VPNGatewayState.DELETING);
+                    gateway.setCurrentState(VpnGatewayState.DELETING);
                 }
                 else if( state.equalsIgnoreCase("deleted") ) {
-                    gateway.setCurrentState(VPNGatewayState.DELETED);
+                    gateway.setCurrentState(VpnGatewayState.DELETED);
                 }
                 else if( state.equalsIgnoreCase("pending") ) {
-                    gateway.setCurrentState(VPNGatewayState.PENDING);
+                    gateway.setCurrentState(VpnGatewayState.PENDING);
                 }
                 else {
                     logger.warn("DEBUG: Unknown VPN gateway state: " + state);
@@ -831,14 +754,14 @@ public class VPCGateway implements VPNSupport {
                 String t = attr.getFirstChild().getNodeValue().trim();
                 
                 if( t.equalsIgnoreCase("ipsec.1") ) {
-                    gateway.setProtocol(VPNProtocol.IPSEC1);
+                    gateway.setProtocol(VpnProtocol.IPSEC1);
                 }
                 else if( t.equalsIgnoreCase("openvpn") ) {
-                    gateway.setProtocol(VPNProtocol.OPEN_VPN);
+                    gateway.setProtocol(VpnProtocol.OPEN_VPN);
                 }
                 else {
                     logger.warn("DEBUG: Unknown VPN gateway type: " + t);
-                    gateway.setProtocol(VPNProtocol.IPSEC1);
+                    gateway.setProtocol(VpnProtocol.IPSEC1);
                 }
             }
             else if( nodeName.equalsIgnoreCase("ipAddress") && attr.hasChildNodes() ) {
@@ -848,7 +771,7 @@ public class VPCGateway implements VPNSupport {
                 gateway.setBgpAsn(attr.getFirstChild().getNodeValue().trim());
             }
             else if( nodeName.equalsIgnoreCase("tagSet") && attr.hasChildNodes() ) {
-                provider.setTags(attr, gateway);
+                getProvider().setTags(attr, gateway);
             }
         }
         if( gateway.getProviderVpnGatewayId() == null ) {
@@ -863,23 +786,23 @@ public class VPCGateway implements VPNSupport {
         return gateway;
     }
 
-    private @Nonnull VPNGatewayState toGatewayState(@Nonnull String state) {
+    private @Nonnull VpnGatewayState toGatewayState(@Nonnull String state) {
 
         if( state.equalsIgnoreCase("available") ) {
-            return VPNGatewayState.AVAILABLE;
+            return VpnGatewayState.AVAILABLE;
         }
         else if( state.equalsIgnoreCase("deleting") ) {
-            return VPNGatewayState.DELETING;
+            return VpnGatewayState.DELETING;
         }
         else if( state.equalsIgnoreCase("deleted") ) {
-            return VPNGatewayState.DELETED;
+            return VpnGatewayState.DELETED;
         }
         else if( state.equalsIgnoreCase("pending") ) {
-            return VPNGatewayState.PENDING;
+            return VpnGatewayState.PENDING;
         }
         else {
             logger.warn("DEBUG: Unknown AWS VPN gateway state: " + state);
-            return VPNGatewayState.PENDING;
+            return VpnGatewayState.PENDING;
         }
     }
 
@@ -889,7 +812,7 @@ public class VPCGateway implements VPNSupport {
         }
 
         NodeList attributes = node.getChildNodes();
-        VPNGatewayState state = VPNGatewayState.PENDING;
+        VpnGatewayState state = VpnGatewayState.PENDING;
         String gatewayId = null;
 
         for( int i=0; i<attributes.getLength(); i++ ) {
@@ -909,17 +832,17 @@ public class VPCGateway implements VPNSupport {
         return new ResourceStatus(gatewayId, state);
     }
 
-    private @Nullable VPN toVPN(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable Vpn toVPN(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
         
         NodeList attributes = node.getChildNodes();
         String name = null, description = null;
-        VPN vpn = new VPN();
+        Vpn vpn = new Vpn();
 
-        vpn.setCurrentState(VPNState.PENDING);
-        vpn.setProviderRegionId(ctx.getRegionId());
+        vpn.setCurrentState(VpnState.PENDING);
+        vpn.setProviderRegionId(getContext().getRegionId());
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attr = attributes.item(i);
             String nodeName = attr.getNodeName();
@@ -934,14 +857,14 @@ public class VPCGateway implements VPNSupport {
                 String t = attr.getFirstChild().getNodeValue().trim();
 
                 if( t.equalsIgnoreCase("ipsec.1") ) {
-                    vpn.setProtocol(VPNProtocol.IPSEC1);
+                    vpn.setProtocol(VpnProtocol.IPSEC1);
                 }
                 else if( t.equalsIgnoreCase("openvpn") ) {
-                    vpn.setProtocol(VPNProtocol.OPEN_VPN);
+                    vpn.setProtocol(VpnProtocol.OPEN_VPN);
                 }
                 else {
                     logger.warn("DEBUG: Unknown VPN gateway type: " + t);
-                    vpn.setProtocol(VPNProtocol.IPSEC1);
+                    vpn.setProtocol(VpnProtocol.IPSEC1);
                 }
             }
             else if( nodeName.equalsIgnoreCase("attachments") && attr.hasChildNodes() ) {
@@ -971,7 +894,7 @@ public class VPCGateway implements VPNSupport {
                 vpn.setProviderVlanIds(vlans.toArray(new String[vlans.size()]));
             }
             else if( nodeName.equalsIgnoreCase("tagSet") && attr.hasChildNodes() ) {
-                provider.setTags(attr, vpn);
+                getProvider().setTags(attr, vpn);
                 if( vpn.getTags().get("name") != null ) {
                     name =  vpn.getTags().get("name");
                 }
@@ -992,22 +915,22 @@ public class VPCGateway implements VPNSupport {
         return vpn;
     }
 
-    private @Nonnull VPNState toVPNState(@Nonnull String status) throws CloudException, InternalException {
+    private @Nonnull VpnState toVPNState(@Nonnull String status) throws CloudException, InternalException {
         if( status.equalsIgnoreCase("available") ) {
-            return VPNState.AVAILABLE;
+            return VpnState.AVAILABLE;
         }
         else if( status.equalsIgnoreCase("deleting") ) {
-            return VPNState.DELETING;
+            return VpnState.DELETING;
         }
         else if( status.equalsIgnoreCase("deleted") ) {
-            return VPNState.DELETED;
+            return VpnState.DELETED;
         }
         else if( status.equalsIgnoreCase("pending") ) {
-            return VPNState.PENDING;
+            return VpnState.PENDING;
         }
         else {
             logger.warn("DEBUG: Unknown AWS VPN state: " + status);
-            return VPNState.PENDING;
+            return VpnState.PENDING;
         }
     }
 
@@ -1017,7 +940,7 @@ public class VPCGateway implements VPNSupport {
         }
 
         NodeList attributes = node.getChildNodes();
-        VPNState state = VPNState.PENDING;
+        VpnState state = VpnState.PENDING;
         String vpnId = null;
 
         for( int i=0; i<attributes.getLength(); i++ ) {

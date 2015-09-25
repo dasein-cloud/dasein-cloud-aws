@@ -50,12 +50,15 @@ public class IAMMethod extends EC2Method {
     static public final String GET_GROUP_POLICY       = "GetGroupPolicy";
     static public final String GET_USER               = "GetUser";
     static public final String GET_USER_POLICY        = "GetUserPolicy";
+    static public final String GET_POLICY             = "GetPolicy";
+    static public final String GET_POLICY_VERSION     = "GetPolicyVersion";
     static public final String LIST_ACCESS_KEY        = "ListAccessKey";
     static public final String LIST_GROUP_POLICIES    = "ListGroupPolicies";
     static public final String LIST_GROUPS            = "ListGroups";
     static public final String LIST_GROUPS_FOR_USER   = "ListGroupsForUser";
     static public final String LIST_USER_POLICIES     = "ListUserPolicies";
     static public final String LIST_USERS             = "ListUsers";
+    static public final String LIST_POLICIES          = "ListPolicies";
     static public final String PUT_GROUP_POLICY       = "PutGroupPolicy";
     static public final String PUT_USER_POLICY        = "PutUserPolicy";
     static public final String DELETE_USER_POLICY     = "DeleteUserPolicy";
@@ -169,7 +172,7 @@ public class IAMMethod extends EC2Method {
         return new ServiceAction[0];
     }
 
-    public IAMMethod(AWSCloud provider, Map<String,String> parameters) throws CloudException, InternalException {
+    public IAMMethod(AWSCloud provider, Map<String,String> parameters) throws InternalException {
         super("iam", provider, parameters);
     }
 
