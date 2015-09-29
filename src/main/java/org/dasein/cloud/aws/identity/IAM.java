@@ -1511,159 +1511,36 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         
         for( int i=0; i<policyStatements.length(); i++ ) {
             JSONObject policyStatement = policyStatements.getJSONObject(i);
-            String effect = (policyStatement.has("Effect") ? policyStatement.getString("Effect") : null);
-            String action = (policyStatement.has("Action") ? policyStatement.getString("Action") : null);
-            String resource = (policyStatement.has("Resource") ? policyStatement.getString("Resource") : null);
+            String effect = policyStatement.optString("Effect");
+            Object actionObj = policyStatement.opt("Action");
+            String resource = policyStatement.getString("Resource");
             if( effect == null ) {
                 return null;
             }
             CloudPermission permission = (effect.equalsIgnoreCase("allow") ? CloudPermission.ALLOW : CloudPermission.DENY);
             boolean exceptActions = false;
-            if( action == null ) {
-                action = policyStatement.optString("NotAction");
+            if( actionObj == null ) {
+                actionObj = policyStatement.optString("NotAction");
                 exceptActions = true;
             }
 
             ServiceAction[] serviceActions = null;
-            String resourceId = null;
+            String[] resourceIds = null;
             
-            if( action != null ) {
-                if( action.equals("*") ) {
-                    serviceActions = new ServiceAction[0];
-                }
-                else {
-                    int idx = action.indexOf(":");
-                    String svc;
-                    
-                    if( idx < 1 ) {
-                        svc = "ec2";
-                        if( idx == 0 ) {
-                            if( action.length() > 1 ) {
-                                action = action.substring(1);                            
-                            }
-                            else {
-                                action = "*";
-                            }
-                        }
+            if( actionObj != null ) {
+                if (actionObj instanceof JSONArray) {
+                    JSONArray actions = (JSONArray) actionObj;
+                    List<ServiceAction> actionList = new ArrayList<>();
+                    for (int j = 0; j < actions.length(); j++) {
+                        actionList.add(new ServiceAction(actions.getString(j)));
                     }
-                    else if( idx == action.length()-1 ) {
-                        svc = action.substring(0, idx);
-                        action = "*";
-                    }
-                    else {
-                        svc = action.substring(0, idx);
-                        action = action.substring(idx+1);                    
-                    }
-                    if( action.equals("*") ) {
-                        action = null;
-                    }
-                    svc = svc + ":";
-                    if( svc.equals(IAMMethod.IAM_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { IdentityAndAccessSupport.ANY };
-                        }
-                        else {
-                            serviceActions = IAMMethod.asIAMServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.EC2_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] {
-                                    PrepaymentSupport.ANY,
-                                    VirtualMachineSupport.ANY, 
-                                    MachineImageSupport.ANY, 
-                                    VolumeSupport.ANY,
-                                    SnapshotSupport.ANY, 
-                                    IpAddressSupport.ANY, 
-                                    FirewallSupport.ANY, 
-                                    ShellKeySupport.ANY
-                            };
-                        }
-                        else {
-                            serviceActions = EC2Method.asEC2ServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(Route53Method.R53_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { DNSSupport.ANY };
-                        }
-                        else {
-                            serviceActions = Route53Method.asRoute53ServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(ELBMethod.ELB_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { LoadBalancerSupport.ANY };
-                        }
-                        else {
-                            serviceActions = ELBMethod.asELBServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(CloudFrontMethod.CF_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { CDNSupport.ANY };
-                        }
-                        else {
-                            serviceActions = CloudFrontMethod.asCloudFrontServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.AUTOSCALING_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { AutoScalingSupport.ANY };
-                        }
-                        else {
-                            serviceActions = EC2Method.asAutoScalingServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.RDS_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { RelationalDatabaseSupport.ANY };
-                        }
-                        else {
-                            serviceActions = RDS.asRDSServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.SDB_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { KeyValueDatabaseSupport.ANY };
-                        }
-                        else {
-                            serviceActions = SimpleDB.asSimpleDBServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.SNS_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { PushNotificationSupport.ANY };
-                        }
-                        else {
-                            serviceActions = SNS.asSNSServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.SQS_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { MQSupport.ANY };
-                        }
-                        else {
-                            serviceActions = SQS.asSQSServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(S3Method.S3_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { BlobStoreSupport.ANY };
-                        }
-                        else {
-                            serviceActions = S3Method.asS3ServiceAction(action);
-                        }
-                    }
-                    else {
-                        serviceActions = new ServiceAction[0];
-                    }
+                    serviceActions = actionList.toArray(new ServiceAction[actionList.size()]);
+                } else {
+                    serviceActions = new ServiceAction[]{new ServiceAction((String) actionObj)};
                 }
             }
-            if( resource != null && !resource.equals("*") ) {
-                resourceId = resource;
-            }
-            rules.add(CloudPolicyRule.getInstance(permission, serviceActions, exceptActions, resourceId));
+
+            rules.add(CloudPolicyRule.getInstance(permission, serviceActions, exceptActions, resource));
         }
         return CloudPolicy.getInstance(policyId, policyName, description, rules.toArray(new CloudPolicyRule[rules.size()]), type, providerUserId, providerGroupId);
     }
