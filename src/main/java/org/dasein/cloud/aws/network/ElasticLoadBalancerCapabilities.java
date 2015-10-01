@@ -50,7 +50,7 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
 
     @Override
     public int getMaxPublicPorts() throws CloudException, InternalException {
-        return 0;
+        return 100;
     }
 
     @Nonnull
