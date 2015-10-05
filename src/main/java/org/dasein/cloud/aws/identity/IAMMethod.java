@@ -52,7 +52,7 @@ public class IAMMethod extends EC2Method {
     static public final String GET_USER_POLICY        = "GetUserPolicy";
     static public final String GET_POLICY             = "GetPolicy";
     static public final String GET_POLICY_VERSION     = "GetPolicyVersion";
-    static public final String LIST_ACCESS_KEY        = "ListAccessKey";
+    static public final String LIST_ACCESS_KEYS       = "ListAccessKeys";
     static public final String LIST_GROUP_POLICIES    = "ListGroupPolicies";
     static public final String LIST_GROUPS            = "ListGroups";
     static public final String LIST_GROUPS_FOR_USER   = "ListGroupsForUser";
@@ -65,6 +65,7 @@ public class IAMMethod extends EC2Method {
     static public final String REMOVE_USER_FROM_GROUP = "RemoveUserFromGroup";
     static public final String UPDATE_GROUP           = "UpdateGroup";
     static public final String UPDATE_USER            = "UpdateUser";
+    static public final String UPDATE_ACCESS_KEY      = "UpdateAccessKey";
     static public final String LIST_SSL_CERTIFICATES  = "ListServerCertificates";
     static public final String GET_SSL_CERTIFICATE    = "GetServerCertificate";
     static public final String CREATE_SSL_CERTIFICATE = "UploadServerCertificate";
@@ -120,8 +121,8 @@ public class IAMMethod extends EC2Method {
         else if( action.equals(GET_USER_POLICY) ) {
             return new ServiceAction[] { IdentityAndAccessSupport.GET_USER_POLICY };
         }
-        else if( action.equals(LIST_ACCESS_KEY) ) {
-            return new ServiceAction[] { IdentityAndAccessSupport.LIST_ACCESS_KEY };
+        else if( action.equals(LIST_ACCESS_KEYS) ) {
+            return new ServiceAction[] { IdentityAndAccessSupport.LIST_ACCESS_KEYS };
         }
         else if( action.equals(LIST_GROUP_POLICIES) ) {
             return new ServiceAction[] { IdentityAndAccessSupport.GET_GROUP_POLICY };            
