@@ -36,10 +36,16 @@ public class IAMMethod extends EC2Method {
     static public final String SERVICE_ID = "iam";
 
     static public final String ADD_USER_TO_GROUP      = "AddUserToGroup";
+    static public final String ATTACH_USER_POLICY     = "AttachUserPolicy";
+    static public final String ATTACH_GROUP_POLICY    = "AttachGroupPolicy";
+    static public final String DETACH_USER_POLICY     = "DetachUserPolicy";
+    static public final String DETACH_GROUP_POLICY    = "DetachGroupPolicy";
     static public final String CREATE_ACCESS_KEY      = "CreateAccessKey";
     static public final String CREATE_GROUP           = "CreateGroup";
     static public final String CREATE_LOGIN_PROFILE   = "CreateLoginProfile";
     static public final String CREATE_USER            = "CreateUser";
+    static public final String CREATE_POLICY          = "CreatePolicy";
+    static public final String CREATE_POLICY_VERSION  = "CreatePolicyVersion";
     static public final String DELETE_ACCESS_KEY      = "DeleteAccessKey";
     static public final String DELETE_GROUP           = "DeleteGroup";
     static public final String DELETE_GROUP_POLICY    = "DeleteGroupPolicy";
@@ -52,6 +58,7 @@ public class IAMMethod extends EC2Method {
     static public final String GET_USER_POLICY        = "GetUserPolicy";
     static public final String GET_POLICY             = "GetPolicy";
     static public final String GET_POLICY_VERSION     = "GetPolicyVersion";
+    static public final String DELETE_POLICY          = "DeletePolicy";
     static public final String LIST_ACCESS_KEYS       = "ListAccessKeys";
     static public final String LIST_GROUP_POLICIES    = "ListGroupPolicies";
     static public final String LIST_GROUPS            = "ListGroups";
@@ -59,6 +66,8 @@ public class IAMMethod extends EC2Method {
     static public final String LIST_USER_POLICIES     = "ListUserPolicies";
     static public final String LIST_USERS             = "ListUsers";
     static public final String LIST_POLICIES          = "ListPolicies";
+    static public final String LIST_ATTACHED_USER_POLICIES = "ListAttachedUserPolicies";
+    static public final String LIST_ATTACHED_GROUP_POLICIES = "ListAttachedGroupPolicies";
     static public final String PUT_GROUP_POLICY       = "PutGroupPolicy";
     static public final String PUT_USER_POLICY        = "PutUserPolicy";
     static public final String DELETE_USER_POLICY     = "DeleteUserPolicy";

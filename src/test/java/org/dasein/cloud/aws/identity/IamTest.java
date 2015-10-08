@@ -24,8 +24,7 @@ import static org.mockito.Mockito.*;
 
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.identity.CloudPolicy;
-import org.dasein.cloud.identity.ServiceAction;
+import org.dasein.cloud.identity.*;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -85,10 +84,6 @@ public class IamTest {
                     .thenReturn(doc2); // second page
             when(identity.listManagedPolicies(anyString()))
                     .thenCallRealMethod();
-            when(identity.getPolicyVersion(anyString(), anyString(), anyString(), anyString()))
-                    .thenCallRealMethod();
-            when(identity.invoke(eq(IAMMethod.GET_POLICY_VERSION), anyMap()))
-                    .thenReturn(fixture("get_policy_version.xml"));
 
             Iterable<CloudPolicy> policies = identity.listManagedPolicies("AWS");
             assertNotNull("Policies list should not be null", policies);
@@ -115,20 +110,34 @@ public class IamTest {
                     .thenReturn(
                             fixture("get_policy.xml")
                     );
+            when(identity.getPolicy(anyString(), any(CloudPolicyFilterOptions.class)))
+                    .thenCallRealMethod();
+
+            CloudPolicy policy = identity.getPolicy("ANPAIWMBCKSKIEE64ZLYK", null);
+            assertNotNull("Policy object should not be null", policy);
+            assertEquals(policy.getName(), "AdministratorAccess");
+            assertEquals(policy.getProviderPolicyId(), "arn:aws:iam::aws:policy/AdministratorAccess");
+        } catch (CloudException|InternalException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void getPolicyRules() {
+        IAM identity = mock(IAM.class);
+        try {
             when(identity.invoke(eq(IAMMethod.GET_POLICY_VERSION), anyMap()))
                     .thenReturn(
                             fixture("get_policy_version.xml")
                     );
 
-            when(identity.getPolicy(anyString()))
-                    .thenCallRealMethod();
-            when(identity.getPolicyVersion(anyString(), anyString(), anyString(), anyString()))
+            when(identity.getPolicyRules(anyString(), any(CloudPolicyFilterOptions.class)))
                     .thenCallRealMethod();
 
-            CloudPolicy policy = identity.getPolicy("ANPAIWMBCKSKIEE64ZLYK");
-            assertNotNull("Policy object should not be null", policy);
-            assertEquals(policy.getName(), "AdministratorAccess");
-            assertEquals(policy.getProviderPolicyId(), "arn:aws:iam::aws:policy/AdministratorAccess");
+            CloudPolicyRule[] rules = identity.getPolicyRules("ANPAIWMBCKSKIEE64ZLYK", null);
+            assertNotNull("Policy rules array should not be null", rules);
+            assertEquals(rules.length, 1);
+            assertEquals(rules[0].getPermission(), CloudPermission.ALLOW);
         } catch (CloudException|InternalException e) {
             e.printStackTrace();
         }
