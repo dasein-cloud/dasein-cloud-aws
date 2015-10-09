@@ -25,6 +25,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.identity.CloudPolicyType;
 import org.dasein.cloud.identity.IdentityAndAccessCapabilities;
+import org.dasein.cloud.util.NamingConstraints;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -80,6 +81,12 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
 
     @Nonnull
     @Override
+    public NamingConstraints getPasswordConstraints() throws CloudException, InternalException {
+        return NamingConstraints.getAlphaNumeric(1, 128);
+    }
+
+    @Nonnull
+    @Override
     public Iterable<CloudPolicyType> listSupportedPolicyTypes() throws CloudException, InternalException {
         return Arrays.asList(
                 CloudPolicyType.ACCOUNT_MANAGED_POLICY,
@@ -101,6 +108,11 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
     @Override
     public int getMaximumGroupsPerUser() throws CloudException, InternalException {
         return 100;
+    }
+
+    @Override
+    public int getMaximumAccessKeysPerUser() throws CloudException, InternalException {
+        return 2;
     }
 
     @Override
