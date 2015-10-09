@@ -416,8 +416,8 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         try {
             Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", userName);
-            Document doc = invoke(IAMMethod.LIST_USERS, parameters);
-            NodeList blocks = doc.getElementsByTagName("member");
+            Document doc = invoke(IAMMethod.GET_USER, parameters);
+            NodeList blocks = doc.getElementsByTagName("User");
             for( int i=0; i<blocks.getLength(); i++ ) {
                 CloudUser cloudUser = toUser(blocks.item(i));
 
@@ -440,6 +440,37 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
         finally {
             APITrace.end();
         }        
+    }
+
+    private @Nullable CloudGroup getGroupByName(@Nonnull String groupName) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getUserByName");
+        try {
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("GroupName", groupName);
+            Document doc = invoke(IAMMethod.GET_GROUP, parameters);
+            NodeList blocks = doc.getElementsByTagName("Group");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudGroup cloudGroup = toGroup(blocks.item(i));
+
+                if( cloudGroup != null ) {
+                    if( logger.isDebugEnabled() ) {
+                        logger.debug("cloudGroup=" + cloudGroup);
+                    }
+                    return cloudGroup;
+                }
+            }
+            if( logger.isDebugEnabled() ) {
+                logger.debug("cloudGroup=null");
+            }
+            return null;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     protected @Nullable CloudPolicy getManagedPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
@@ -998,8 +1029,9 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
                                 ownerAccount.equalsIgnoreCase("aws") ?
                                         CloudPolicyType.PROVIDER_MANAGED_POLICY :
                                         CloudPolicyType.ACCOUNT_MANAGED_POLICY,
-                                providerUserId != null ? providerUserId : null,
-                                providerUserId == null ? providerGroupId : null));
+                                // user and group should remain null as they are only used for inline policies
+                                null,
+                                null));
                     }
                 }
             } while (marker != null);
@@ -1765,6 +1797,68 @@ public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
             Map<String, String> parameters = new HashMap<>();
             parameters.put("PolicyArn", providerPolicyId);
             invoke(IAMMethod.DELETE_POLICY, parameters);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<CloudUser> listUsersForPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        List<CloudUser> users = new ArrayList<>();
+        for( String userName : listEntitiesForPolicy(providerPolicyId, true) ) {
+            try {
+                CloudUser user = getUserByName(userName);
+                if( user != null ) {
+                    users.add(user);
+                }
+            } catch( Throwable ignore) {}
+        }
+        return users;
+    }
+
+
+    @Nonnull
+    @Override
+    public Iterable<CloudGroup> listGroupsForPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        List<CloudGroup> groups = new ArrayList<>();
+        for( String groupName : listEntitiesForPolicy(providerPolicyId, false) ) {
+            try {
+                CloudGroup group = getGroupByName(groupName);
+                if( group != null ) {
+                    groups.add(group);
+                }
+            } catch( Throwable ignore) {}
+        }
+        return groups;
+    }
+
+    protected List<String> listEntitiesForPolicy(@Nonnull String providerPolicyId, boolean users) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.listEntitiesForPolicy");
+        try {
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            parameters.put("EntityFilter", users ? "User" : "Group");
+            List<String> entities = new ArrayList<>();
+
+            Document doc = invoke(IAMMethod.LIST_ENTITIES_FOR_POLICY, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList attributes = blocks.item(i).getChildNodes();
+                for( int j=0; j<attributes.getLength(); j++ ) {
+                    Node attribute = attributes.item(j);
+                    String attrName = attribute.getNodeName();
+                    if (attrName.equalsIgnoreCase(users ? "UserName" : "GroupName") && attribute.hasChildNodes()) {
+                        entities.add(attribute.getFirstChild().getNodeValue().trim());
+                    }
+                }
+            }
+            return entities;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();

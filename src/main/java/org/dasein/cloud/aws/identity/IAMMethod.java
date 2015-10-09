@@ -68,6 +68,7 @@ public class IAMMethod extends EC2Method {
     static public final String LIST_POLICIES          = "ListPolicies";
     static public final String LIST_ATTACHED_USER_POLICIES = "ListAttachedUserPolicies";
     static public final String LIST_ATTACHED_GROUP_POLICIES = "ListAttachedGroupPolicies";
+    static public final String LIST_ENTITIES_FOR_POLICY = "ListEntitiesForPolicy";
     static public final String PUT_GROUP_POLICY       = "PutGroupPolicy";
     static public final String PUT_USER_POLICY        = "PutUserPolicy";
     static public final String DELETE_USER_POLICY     = "DeleteUserPolicy";
