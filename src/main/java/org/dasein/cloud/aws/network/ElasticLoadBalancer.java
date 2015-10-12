@@ -1008,8 +1008,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             blocks = doc.getElementsByTagName("HealthCheck");
             if( blocks.getLength() > 0 ) {
                 LoadBalancerHealthCheck lbhc = toLBHealthCheck(providerLoadBalancerId, blocks.item(0));
-                lbhc.addProviderLoadBalancerId(providerLoadBalancerId);
-                lbhc.setName(toHCName(providerLoadBalancerId));
                 return lbhc;
             }
             return null;
@@ -1187,8 +1185,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                             }
                         }
                         if( lbhc != null && lbId != null ) {
-                            lbhc.addProviderLoadBalancerId(lbId);
-                            lbhc.setName(toHCName(lbId));
                             if( opts != null ) {
                                 if( opts.matches(lbhc) ) {
                                     list.add(lbhc);
