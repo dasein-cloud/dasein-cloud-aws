@@ -954,26 +954,11 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                 }
             }
             parameters.put("HealthCheck.Target", options.getProtocol().name() + ":" + options.getPort() + path);
-            // TODO: these limits should be made available through capabilities
-            // and handled by core in HCOptions ctor
+
             int interval = options.getInterval();
-            if( interval > 300 ) {
-                interval = 300;
-            } else if( interval < 3 ) {
-                interval = 3;
-            }
-            // TODO: same here
             parameters.put("HealthCheck.Interval", String.valueOf(interval));
+
             int timeout = options.getTimeout();
-            if( timeout > 60 ) {
-                timeout = 60;
-            } else if( timeout < 2 ) {
-                timeout = 2;
-            }
-            // TODO: same here, timeout should be less than interval
-            if( timeout >= interval) {
-                timeout = interval - 1;
-            }
             parameters.put("HealthCheck.Timeout", String.valueOf(timeout));
 
             method = new ELBMethod(provider, ctx, parameters);
@@ -1023,8 +1008,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
             blocks = doc.getElementsByTagName("HealthCheck");
             if( blocks.getLength() > 0 ) {
                 LoadBalancerHealthCheck lbhc = toLBHealthCheck(providerLoadBalancerId, blocks.item(0));
-                lbhc.addProviderLoadBalancerId(providerLoadBalancerId);
-                lbhc.setName(toHCName(providerLoadBalancerId));
                 return lbhc;
             }
             return null;
@@ -1202,8 +1185,6 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
                             }
                         }
                         if( lbhc != null && lbId != null ) {
-                            lbhc.addProviderLoadBalancerId(lbId);
-                            lbhc.setName(toHCName(lbId));
                             if( opts != null ) {
                                 if( opts.matches(lbhc) ) {
                                     list.add(lbhc);
@@ -1224,6 +1205,12 @@ public class ElasticLoadBalancer extends AbstractLoadBalancerSupport<AWSCloud> {
 
     @Override
     public LoadBalancerHealthCheck modifyHealthCheck( @Nonnull String providerLBHealthCheckId, @Nonnull HealthCheckOptions options ) throws InternalException, CloudException {
+        if( options.getName() == null ) {
+            options.setName(toHCName(providerLBHealthCheckId));
+        }
+        if( options.getProviderLoadBalancerId() == null ) {
+            options.setLoadBalancerId(providerLBHealthCheckId);
+        }
         return createLoadBalancerHealthCheck(options);
     }
 
