@@ -55,6 +55,11 @@ public class IAMCapabilities extends AbstractCapabilities<AWSCloud> implements I
         return true;
     }
 
+    @Override
+    public boolean supportsPolicies() throws CloudException, InternalException {
+        return true;
+    }
+
     @Nullable
     @Override
     public String getConsoleUrl() throws CloudException, InternalException {
