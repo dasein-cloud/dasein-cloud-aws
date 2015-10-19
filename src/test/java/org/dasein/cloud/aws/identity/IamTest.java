@@ -112,6 +112,8 @@ public class IamTest {
                     );
             when(identity.getPolicy(anyString(), any(CloudPolicyFilterOptions.class)))
                     .thenCallRealMethod();
+            when(identity.getManagedPolicy(anyString()))
+                    .thenCallRealMethod();
 
             CloudPolicy policy = identity.getPolicy("ANPAIWMBCKSKIEE64ZLYK", null);
             assertNotNull("Policy object should not be null", policy);
@@ -130,9 +132,14 @@ public class IamTest {
                     .thenReturn(
                             fixture("get_policy_version.xml")
                     );
+            when(identity.invoke(eq(IAMMethod.GET_POLICY), anyMap()))
+                    .thenReturn(
+                            fixture("get_policy.xml")
+                    );
 
             when(identity.getPolicyRules(anyString(), any(CloudPolicyFilterOptions.class)))
                     .thenCallRealMethod();
+            when(identity.getManagedPolicyRules(anyString())).thenCallRealMethod();
 
             CloudPolicyRule[] rules = identity.getPolicyRules("ANPAIWMBCKSKIEE64ZLYK", null);
             assertNotNull("Policy rules array should not be null", rules);
