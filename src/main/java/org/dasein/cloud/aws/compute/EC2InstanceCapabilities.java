@@ -145,6 +145,11 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     }
 
     @Override
+    public @Nonnull Requirement identifyUsernameRequirement() throws CloudException, InternalException{
+        return Requirement.OPTIONAL;
+    }
+
+    @Override
     public @Nonnull Requirement identifyPasswordRequirement(Platform platform) throws CloudException, InternalException {
         return Requirement.NONE;
     }
