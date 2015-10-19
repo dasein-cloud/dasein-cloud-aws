@@ -277,9 +277,9 @@
                             <value>${test.shareAccount}</value>
                         </property>
                     </systemProperties>
-                    <includes>
-                        <include>**/TestSuite.class</include>
-                    </includes>
+                    <excludes>
+                        <exclude>**/TestSuite.class</exclude>
+                    </excludes>
                 </configuration>
                 <executions>
                     <execution>
