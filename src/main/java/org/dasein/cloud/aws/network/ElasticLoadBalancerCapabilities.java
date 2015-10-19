@@ -50,7 +50,27 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
 
     @Override
     public int getMaxPublicPorts() throws CloudException, InternalException {
-        return 0;
+        return 100;
+    }
+
+    @Override
+    public int getMaxHealthCheckTimeout() throws CloudException, InternalException {
+        return 60;
+    }
+
+    @Override
+    public int getMinHealthCheckTimeout() throws CloudException, InternalException {
+        return 2;
+    }
+
+    @Override
+    public int getMaxHealthCheckInterval() throws CloudException, InternalException {
+        return 300;
+    }
+
+    @Override
+    public int getMinHealthCheckInterval() throws CloudException, InternalException {
+        return 5;
     }
 
     @Nonnull
@@ -71,8 +91,19 @@ public class ElasticLoadBalancerCapabilities extends AbstractCapabilities<AWSClo
     }
 
     @Override
+    public boolean healthCheckRequiresListener() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
     public Requirement healthCheckRequiresName() throws CloudException, InternalException {
         return Requirement.NONE;
+    }
+
+    @Nonnull
+    @Override
+    public Requirement healthCheckRequiresPort() throws CloudException, InternalException {
+        return Requirement.REQUIRED;
     }
 
     @Nonnull

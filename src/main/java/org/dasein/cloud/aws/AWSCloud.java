@@ -1465,8 +1465,8 @@ public class AWSCloud extends AbstractCloud {
                 );
             }
         }
-        DefaultHttpClient client = new DefaultHttpClient(params);
-        client.addRequestInterceptor(new HttpRequestInterceptor() {
+        DefaultHttpClient httpClient = new DefaultHttpClient(params);
+        httpClient.addRequestInterceptor(new HttpRequestInterceptor() {
             public void process(
                     final HttpRequest request,
                     final HttpContext context) throws HttpException, IOException {
@@ -1476,7 +1476,7 @@ public class AWSCloud extends AbstractCloud {
                 request.setParams(params);
             }
         });
-        client.addResponseInterceptor(new HttpResponseInterceptor() {
+        httpClient.addResponseInterceptor(new HttpResponseInterceptor() {
             public void process(
                     final HttpResponse response,
                     final HttpContext context) throws HttpException, IOException {
@@ -1495,7 +1495,7 @@ public class AWSCloud extends AbstractCloud {
                 }
             }
         });
-        return client;
+        return httpClient;
     }
 
     /**

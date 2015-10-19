@@ -125,6 +125,11 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     }
 
     @Override
+    public @Nonnull String[] getVirtualMachineReservedUserNames() {
+        return new String[0];
+    }
+
+    @Override
     public @Nullable VMScalingCapabilities getVerticalScalingCapabilities() throws CloudException, InternalException {
         return VMScalingCapabilities.getInstance(false, true, false);
     }
@@ -137,6 +142,11 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
     @Override
     public @Nonnull Requirement identifyImageRequirement(@Nonnull ImageClass cls) throws CloudException, InternalException {
         return (ImageClass.MACHINE.equals(cls) ? Requirement.REQUIRED : Requirement.OPTIONAL);
+    }
+
+    @Override
+    public @Nonnull Requirement identifyUsernameRequirement() throws CloudException, InternalException{
+        return Requirement.OPTIONAL;
     }
 
     @Override
@@ -193,6 +203,11 @@ public class EC2InstanceCapabilities extends AbstractCapabilities<AWSCloud> impl
 
     @Override
     public boolean isUserDefinedPrivateIPSupported() throws CloudException, InternalException {
+        return false;
+    }
+
+    @Override
+    public boolean isRootPasswordSSHKeyEncrypted() throws CloudException, InternalException {
         return false;
     }
 

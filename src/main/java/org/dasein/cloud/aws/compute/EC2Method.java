@@ -22,6 +22,7 @@ package org.dasein.cloud.aws.compute;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
@@ -46,13 +47,13 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletResponse;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class EC2Method {
     static private final Logger logger = AWSCloud.getLogger(EC2Method.class);
@@ -525,40 +526,40 @@ public class EC2Method {
         }
         // VPN operations
         if( action.equals(CREATE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.CREATE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.CREATE_GATEWAY};
         }
         else if( action.equals(ATTACH_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.ATTACH};
+            return new ServiceAction[]{VpnSupport.ATTACH};
         }
         else if( action.equals(CREATE_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.CREATE_VPN};
+            return new ServiceAction[]{VpnSupport.CREATE_VPN};
         }
         else if( action.equals(DELETE_CUSTOMER_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_VPN};
+            return new ServiceAction[]{VpnSupport.REMOVE_VPN};
         }
         else if( action.equals(DESCRIBE_CUSTOMER_GATEWAYS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY};
+            return new ServiceAction[]{VpnSupport.LIST_GATEWAY, VpnSupport.GET_GATEWAY};
         }
         else if( action.equals(DESCRIBE_VPN_CONNECTIONS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_GATEWAY, VPNSupport.GET_GATEWAY, VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
+            return new ServiceAction[]{VpnSupport.LIST_GATEWAY, VpnSupport.GET_GATEWAY, VpnSupport.LIST_VPN, VpnSupport.GET_VPN};
         }
         else if( action.equals(DESCRIBE_VPN_GATEWAYS) ) {
-            return new ServiceAction[]{VPNSupport.LIST_VPN, VPNSupport.GET_VPN};
+            return new ServiceAction[]{VpnSupport.LIST_VPN, VpnSupport.GET_VPN};
         }
         else if( action.equals(CREATE_VPN_CONNECTION) ) {
-            return new ServiceAction[]{VPNSupport.CONNECT_GATEWAY};
+            return new ServiceAction[]{VpnSupport.CONNECT_GATEWAY};
         }
         else if( action.equals(DELETE_VPN_CONNECTION) ) {
-            return new ServiceAction[]{VPNSupport.DISCONNECT_GATEWAY};
+            return new ServiceAction[]{VpnSupport.DISCONNECT_GATEWAY};
         }
         else if( action.equals(DETACH_INTERNET_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.REMOVE_GATEWAY};
+            return new ServiceAction[]{VpnSupport.REMOVE_GATEWAY};
         }
         else if( action.equals(DETACH_VPN_GATEWAY) ) {
-            return new ServiceAction[]{VPNSupport.DETACH};
+            return new ServiceAction[]{VpnSupport.DETACH};
         }
 
         // CloudWatch operations
@@ -593,10 +594,11 @@ public class EC2Method {
         this(EC2Method.SERVICE_ID, provider, parameters);
     }
 
-    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+    public EC2Method( String serviceId, AWSCloud provider, Map<String, String> parameters ) throws InternalException {
         this(serviceId, provider.getContext().getRegionId(), provider, parameters);
     }
-    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException, CloudException {
+
+    public EC2Method( String serviceId, String regionIdOverride, AWSCloud provider, Map<String, String> parameters ) throws InternalException {
         this.parameters = parameters;
         this.provider = provider;
         this.serviceId = serviceId;
@@ -615,7 +617,7 @@ public class EC2Method {
         ProviderContext ctx = provider.getContext();
 
         if( ctx == null ) {
-            throw new CloudException("Provider context is necessary for this request");
+            throw new InternalException("Provider context is necessary for this request");
         }
 //        parameters.put(AWSCloud.P_SIGNATURE, provider.signEc2(ctx.getAccessPrivate(), url, parameters));
     }
@@ -737,7 +739,7 @@ public class EC2Method {
                 throw new InternalException("There was a temporary communication issue with the cloud, please try your request again", e);
             }
             int status = response.getStatusLine().getStatusCode();
-            if( status == HttpServletResponse.SC_OK ) {
+            if( status == HttpStatus.SC_OK ) {
                 try {
                     HttpEntity entity = response.getEntity();
 
@@ -767,7 +769,7 @@ public class EC2Method {
                     throw new CloudException(CloudErrorType.COMMUNICATION, status, null, e.getMessage());
                 }
             }
-            else if( status == HttpServletResponse.SC_FORBIDDEN ) {
+            else if( status == HttpStatus.SC_FORBIDDEN ) {
                 String msg = "API Access Denied (403)";
 
                 try {
@@ -854,11 +856,11 @@ public class EC2Method {
                 if( logger.isDebugEnabled() ) {
                     logger.debug("Received " + status + " from " + parameters.get(AWSCloud.P_ACTION));
                 }
-                if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE || status == HttpServletResponse.SC_INTERNAL_SERVER_ERROR ) {
+                if( status == HttpStatus.SC_SERVICE_UNAVAILABLE || status == HttpStatus.SC_INTERNAL_SERVER_ERROR ) {
                     if( attempts >= 5 ) {
                         String msg;
 
-                        if( status == HttpServletResponse.SC_SERVICE_UNAVAILABLE ) {
+                        if( status == HttpStatus.SC_SERVICE_UNAVAILABLE ) {
                             msg = "Cloud service is currently unavailable.";
                         }
                         else {
@@ -956,6 +958,7 @@ public class EC2Method {
         }
         finally {
             if( client != null ) {
+                client.getConnectionManager().closeIdleConnections(1, TimeUnit.SECONDS);
                 client.getConnectionManager().shutdown();
             }
             if( logger.isTraceEnabled() ) {

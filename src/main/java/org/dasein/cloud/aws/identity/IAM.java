@@ -22,43 +22,12 @@ package org.dasein.cloud.aws.identity;
 import org.apache.log4j.Logger;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
-import org.dasein.cloud.ProviderContext;
-import org.dasein.cloud.admin.PrepaymentSupport;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.compute.EC2Exception;
-import org.dasein.cloud.aws.compute.EC2Method;
-import org.dasein.cloud.aws.network.ELBMethod;
-import org.dasein.cloud.aws.network.Route53Method;
-import org.dasein.cloud.aws.platform.CloudFrontMethod;
-import org.dasein.cloud.aws.platform.RDS;
-import org.dasein.cloud.aws.platform.SNS;        
-import org.dasein.cloud.aws.platform.SQS;
-import org.dasein.cloud.aws.platform.SimpleDB;
-import org.dasein.cloud.aws.storage.S3Method;
-import org.dasein.cloud.compute.AutoScalingSupport;
 import org.dasein.cloud.compute.ComputeServices;
-import org.dasein.cloud.compute.MachineImageSupport;
-import org.dasein.cloud.compute.SnapshotSupport;
 import org.dasein.cloud.compute.VirtualMachineSupport;
-import org.dasein.cloud.compute.VolumeSupport;
-import org.dasein.cloud.identity.AccessKey;
-import org.dasein.cloud.identity.CloudGroup;
-import org.dasein.cloud.identity.CloudPermission;
-import org.dasein.cloud.identity.CloudPolicy;
-import org.dasein.cloud.identity.CloudUser;
-import org.dasein.cloud.identity.IdentityAndAccessSupport;
-import org.dasein.cloud.identity.ServiceAction;
-import org.dasein.cloud.identity.ShellKeySupport;
-import org.dasein.cloud.network.DNSSupport;
-import org.dasein.cloud.network.FirewallSupport;
-import org.dasein.cloud.network.IpAddressSupport;
+import org.dasein.cloud.identity.*;
 import org.dasein.cloud.network.LoadBalancerSupport;
-import org.dasein.cloud.platform.CDNSupport;
-import org.dasein.cloud.platform.KeyValueDatabaseSupport;
-import org.dasein.cloud.platform.MQSupport;
-import org.dasein.cloud.platform.PushNotificationSupport;
-import org.dasein.cloud.platform.RelationalDatabaseSupport;
-import org.dasein.cloud.storage.BlobStoreSupport;
 import org.dasein.cloud.util.APITrace;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -66,15 +35,13 @@ import org.json.JSONObject;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Implementation of the AWS IAM APIs based on the Dasein Cloud identity and access support.
@@ -82,30 +49,45 @@ import java.util.Map;
  * @since 2012.02
  * @version 2012.02
  */
-public class IAM implements IdentityAndAccessSupport {
+public class IAM extends AbstractIdentityAndAccessSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(IAM.class);
-    
-    private AWSCloud provider;
 
-    public IAM(@Nonnull AWSCloud cloud) {
-        provider = cloud;
+    protected IAM(AWSCloud provider) {
+        super(provider);
     }
-    
+
+    private transient volatile IAMCapabilities capabilities;
+
+    @Nonnull
+    @Override
+    public IdentityAndAccessCapabilities getCapabilities() throws CloudException, InternalException {
+        if( capabilities == null ) {
+            capabilities = new IAMCapabilities(getProvider());
+        }
+        return capabilities;
+    }
+
+    protected Document invoke(String action, Map<String, String> extraParameters) throws CloudException, InternalException {
+        Map<String, String> parameters = getProvider().getStandardParameters(getContext(), action, IAMMethod.VERSION);
+        if( extraParameters != null ) {
+            parameters.putAll(extraParameters);
+        }
+        if( logger.isDebugEnabled() ) {
+            logger.debug("parameters=" + parameters);
+        }
+        IAMMethod method = new IAMMethod(getProvider(), parameters);
+        return method.invoke();
+    }
+
     @Override
     public void addUserToGroups(@Nonnull String providerUserId, @Nonnull String... providerGroupIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.addUserToGroups");
+        APITrace.begin(getProvider(), "IAM.addUserToGroups");
         try {
-            ProviderContext ctx = provider.getContext();
-    
-            if( ctx == null ) {
-                logger.error("No context was established for the attempt at addUserToGroups()");
-                throw new InternalException("No context was established for this call.");
-            }
             if( logger.isInfoEnabled() ) {
                 logger.info("Adding " + providerUserId + " to " + providerGroupIds.length + " groups...");
             }
             for( String groupId : providerGroupIds ) {
-                addUserToGroup(ctx, providerUserId, groupId);
+                addUserToGroup(providerUserId, groupId);
             }
             if( logger.isInfoEnabled() ) {
                 logger.info("User " + providerUserId + " successfully added to all groups.");
@@ -118,42 +100,34 @@ public class IAM implements IdentityAndAccessSupport {
 
     /**
      * Executes the function of adding a user to a specific group as AWS does not support bulk adding of a user to a group.
-     * @param ctx the current cloud context
      * @param providerUserId the user to be added
      * @param providerGroupId the group to which the user will be added
      * @throws CloudException an error occurred in the cloud provider adding this user to the specified group
      * @throws InternalException an error occurred within Dasein Cloud adding the user to the group
      */
-    private void addUserToGroup(@Nonnull ProviderContext ctx, @Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
+    private void addUserToGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
         if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".addUserToGroup(" + ctx + "," + providerUserId + "," + providerGroupId + ")");
+            logger.trace("ENTER: " + IAM.class.getName() + ".addUserToGroup(" + providerUserId + "," + providerGroupId + ")");
         }
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.ADD_USER_TO_GROUP, IAMMethod.VERSION);
-            EC2Method method;
-
             CloudUser user = getUser(providerUserId);
-            
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
             
             CloudGroup group = getGroup(providerGroupId);
-            
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
+
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("GroupName", group.getName());
             parameters.put("UserName", user.getUserName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Adding " + providerUserId + " to " + providerGroupId + "...");
                 }
-                method.invoke();
+                invoke(IAMMethod.ADD_USER_TO_GROUP, parameters);
                 if( logger.isInfoEnabled() ) {
                     logger.info("Added.");
                 }
@@ -172,19 +146,9 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull CloudGroup createGroup(@Nonnull String groupName, @Nullable String path, boolean asAdminGroup) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.createGroup");
+        APITrace.begin(getProvider(), "IAM.createGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for the attempt at createGroup()");
-                throw new InternalException("No context was established for this call.");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_GROUP, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+            Map<String,String> parameters = new HashMap<>();
 
             groupName = validateName(groupName);
             parameters.put("GroupName", groupName);
@@ -194,18 +158,14 @@ public class IAM implements IdentityAndAccessSupport {
                 }
                 parameters.put("Path", path);
             }
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating group " + groupName + " in " + path + "...");
                 }
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("Group");
+                Document doc = invoke(IAMMethod.CREATE_GROUP, parameters);
+                NodeList blocks = doc.getElementsByTagName("Group");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudGroup cloudGroup = toGroup(ctx, blocks.item(i));
+                    CloudGroup cloudGroup = toGroup(blocks.item(i));
                     
                     if( logger.isDebugEnabled() ) {
                         logger.debug("cloudGroup=" + cloudGroup);
@@ -216,7 +176,7 @@ public class IAM implements IdentityAndAccessSupport {
                         }
                         if( asAdminGroup ) {
                             logger.info("Setting up admin group rights for new group " + cloudGroup);
-                            saveGroupPolicy(cloudGroup.getProviderGroupId(), "AdminGroup", CloudPermission.ALLOW, null, null);
+                            modifyInlinePolicy(CloudPolicyOptions.getInstance("AdminGroup", CloudPolicyRule.getInstance(CloudPermission.ALLOW, null)));
                         }
                         return cloudGroup;
                     }                    
@@ -236,20 +196,9 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull CloudUser createUser(@Nonnull String userName, @Nullable String path, @Nullable String... autoJoinGroupIds) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.createUser");
+        APITrace.begin(getProvider(), "IAM.createUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for the attempt at createUser()");
-                throw new InternalException("No context was established for this call.");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_USER, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", userName);
             if( path != null ) {
                 if( !path.endsWith("/") ) {
@@ -257,18 +206,14 @@ public class IAM implements IdentityAndAccessSupport {
                 }
                 parameters.put("Path", path);
             }
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating user " + userName + " in " + path + "...");
                 }
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("User");
+                Document doc = invoke(IAMMethod.CREATE_USER, parameters);
+                NodeList blocks = doc.getElementsByTagName("User");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser cloudUser = toUser(ctx, blocks.item(i));
+                    CloudUser cloudUser = toUser(blocks.item(i));
 
                     if( logger.isDebugEnabled() ) {
                         logger.debug("cloudUser=" + cloudUser);
@@ -294,40 +239,29 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public @Nonnull  AccessKey enableAPIAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "enableAPIAccess");
+    public @Nonnull AccessKey createAccessKey(@Nullable String providerUserId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "createAccessKey");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
+            Map<String, String> parameters = new HashMap<>();
+            if( providerUserId != null ) {
+                CloudUser user = getUser(providerUserId);
+                if (user == null) {
+                    throw new CloudException("No such user: " + providerUserId);
+                }
+                parameters.put("UserName", user.getUserName());
             }
 
-            CloudUser user = getUser(providerUserId);
-
-            if( user == null ) {
-                throw new CloudException("No such user: " + providerUserId);
-            }
-            
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_ACCESS_KEY, IAMMethod.VERSION);
-            IAMMethod method;
-            NodeList blocks;
-            Document doc;
-
-            parameters.put("UserName", user.getUserName());
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
             try {
                 if( logger.isInfoEnabled() ) {
-                    logger.info("Creating access keys for " + providerUserId);
+                    logger.info("Creating access key for " + (providerUserId == null ? getContext().getAccountNumber() : providerUserId));
                 }
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("AccessKey");
+                Document doc = invoke(IAMMethod.CREATE_ACCESS_KEY, parameters);
+                NodeList blocks = doc.getElementsByTagName("AccessKey");
                 for( int i=0; i<blocks.getLength(); i++ ) {
-                    AccessKey key = toAccessKey(ctx, blocks.item(i));
+                    AccessKey key = toAccessKey(blocks.item(i));
 
                     if( logger.isDebugEnabled() ) {
                         logger.debug("key=" + key);
@@ -354,26 +288,14 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void enableConsoleAccess(@Nonnull String providerUserId, @Nonnull byte[] password) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.enableConsoleAccess");
+        APITrace.begin(getProvider(), "IAM.enableConsoleAccess");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
             
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.CREATE_LOGIN_PROFILE, IAMMethod.VERSION);
-            IAMMethod method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
             try {
                 parameters.put("Password", new String(password, "utf-8"));
@@ -381,16 +303,12 @@ public class IAM implements IdentityAndAccessSupport {
             catch( UnsupportedEncodingException e ) {
                 throw new InternalException(e);
             }
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=[omitted due to password sensitivity]");
-            }
-            method = new IAMMethod(provider, parameters);
             try {
                 if( logger.isInfoEnabled() ) {
                     logger.info("Creating console access for " + providerUserId);
                 }
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("LoginProfile");
+                Document doc = invoke(IAMMethod.CREATE_LOGIN_PROFILE, parameters);
+                NodeList blocks = doc.getElementsByTagName("LoginProfile");
                 if( blocks.getLength() < 1 ) {
                     logger.error("No console access was created as a result of the request");
                     throw new CloudException("No console access was created as a result of the request");
@@ -408,7 +326,7 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nullable CloudGroup getGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.getGroup");
+        APITrace.begin(getProvider(), "IAM.getGroup");
         try {
             for( CloudGroup group : listGroups(null) ) {
                 if( providerGroupId.equals(group.getProviderGroupId()) ) {
@@ -422,31 +340,24 @@ public class IAM implements IdentityAndAccessSupport {
         }
     }
 
-    private @Nullable CloudPolicy[] getGroupPolicy(@Nonnull CloudGroup group, @Nonnull String policyName) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".getGroupPolicy(" + group + "," + policyName + ")");
-        }
+    private @Nonnull CloudPolicyRule[] getGroupPolicyRules(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getGroupPolicyRules");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.GET_GROUP_POLICY, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-    
-            parameters.put("GroupName", group.getName());
-            parameters.put("PolicyName", policyName);
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            CloudGroup group = getGroup(providerGroupId);
+            if( group == null ) {
+                throw new CloudException("No such group: " + providerGroupId);
             }
-            method = new IAMMethod(provider, parameters);
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("GroupName", group.getName());
+            parameters.put("PolicyName", providerPolicyId);
             try {
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("GetGroupPolicyResult");
+                Document doc = invoke(IAMMethod.GET_GROUP_POLICY, parameters);
+                NodeList blocks = doc.getElementsByTagName("GetGroupPolicyResult");
                 for( int i=0; i<blocks.getLength(); i++ ) {
                     Node policyNode = blocks.item(i);
     
                     if( policyNode.hasChildNodes() ) {
                         NodeList attrs = policyNode.getChildNodes();
-    
                         for( int j=0; j<attrs.getLength(); j++ ) {
                             Node attr = attrs.item(j);
                             
@@ -455,17 +366,17 @@ public class IAM implements IdentityAndAccessSupport {
                                 JSONObject stmt = new JSONObject(json);
                                 
                                 if( stmt.has("Statement") ) {
-                                    return toPolicy(policyName, stmt.getJSONArray("Statement"));
+                                    return toPolicyRules(stmt.getJSONArray("Statement"));
                                 }
                             }
                         }
                     }
                 }
-                return null;
+                return new CloudPolicyRule[0];
             }
             catch( EC2Exception e ) {
                 if( e.getStatus() == 404 ) {
-                    return null;
+                    throw new CloudException("No such policy " + providerPolicyId, e);
                 }
                 logger.error(e.getSummary());
                 throw new CloudException(e);
@@ -480,15 +391,13 @@ public class IAM implements IdentityAndAccessSupport {
             }
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".getGroupPolicy()");
-            }
+            APITrace.end();
         }
     }
 
     @Override
     public @Nullable CloudUser getUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.getUser");
+        APITrace.begin(getProvider(), "IAM.getUser");
         try {
             for( CloudUser user : this.listUsersInPath(null) ) {
                 if( providerUserId.equals(user.getProviderUserId()) ) {
@@ -503,126 +412,316 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     private @Nullable CloudUser getUserByName(@Nonnull String userName) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".getUserByName(" + userName + ")");
-        }
+        APITrace.begin(getProvider(), "IAM.getUserByName");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_USERS, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", userName);
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
-            try {
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser cloudUser = toUser(ctx, blocks.item(i));
+            Document doc = invoke(IAMMethod.GET_USER, parameters);
+            NodeList blocks = doc.getElementsByTagName("User");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudUser cloudUser = toUser(blocks.item(i));
 
-                    if( cloudUser != null ) {
-                        if( logger.isDebugEnabled() ) {
-                            logger.debug("cloudUser=" + cloudUser);
-                        }
-                        return cloudUser;
+                if( cloudUser != null ) {
+                    if( logger.isDebugEnabled() ) {
+                        logger.debug("cloudUser=" + cloudUser);
                     }
+                    return cloudUser;
                 }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("cloudUser=null");
-                }
-                return null;
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
+            if( logger.isDebugEnabled() ) {
+                logger.debug("cloudUser=null");
             }
+            return null;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".getUserByName()");
-            }
+            APITrace.end();
         }        
     }
-    
-    private @Nullable CloudPolicy[] getUserPolicy(@Nonnull CloudUser user, @Nonnull String policyName) throws CloudException, InternalException {
-        if( logger.isTraceEnabled() ) {
-            logger.trace("ENTER: " + IAM.class.getName() + ".getUserPolicy(" + user + "," + policyName + ")");
-        }
+
+    private @Nullable CloudGroup getGroupByName(@Nonnull String groupName) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getUserByName");
         try {
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.GET_USER_POLICY, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("GroupName", groupName);
+            Document doc = invoke(IAMMethod.GET_GROUP, parameters);
+            NodeList blocks = doc.getElementsByTagName("Group");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudGroup cloudGroup = toGroup(blocks.item(i));
 
-            parameters.put("UserName", user.getUserName());
-            parameters.put("PolicyName", policyName);
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+                if( cloudGroup != null ) {
+                    if( logger.isDebugEnabled() ) {
+                        logger.debug("cloudGroup=" + cloudGroup);
+                    }
+                    return cloudGroup;
+                }
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("GetUserPolicyResult");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node policyNode = blocks.item(i);
+            if( logger.isDebugEnabled() ) {
+                logger.debug("cloudGroup=null");
+            }
+            return null;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 
-                    if( policyNode.hasChildNodes() ) {
-                        NodeList attrs = policyNode.getChildNodes();
+    protected @Nullable CloudPolicy getManagedPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.listPolicies");
+        try {
+            Map<String, String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            Document doc = invoke(IAMMethod.GET_POLICY, parameters);
+            NodeList blocks = doc.getElementsByTagName("Policy");
+            for (int i = 0; i < blocks.getLength(); i++) {
+                String name = "Unknown";
+                String description = null;
+                String arn = null;
+                NodeList attributes = blocks.item(i).getChildNodes();
 
-                        for( int j=0; j<attrs.getLength(); j++ ) {
-                            Node attr = attrs.item(j);
+                for( int j=0; j<attributes.getLength(); j++ ) {
+                    Node attribute = attributes.item(j);
+                    if( !attribute.hasChildNodes() ) {
+                        continue;
+                    }
+                    String attrName = attribute.getNodeName();
+                    String value = attribute.getFirstChild().getNodeValue().trim();
+                    switch (attrName.toLowerCase()) {
+                        case "arn":
+                            arn = value;
+                            break;
+                        case "policyname":
+                            name = value;
+                            break;
+                        case "description":
+                            description = value;
+                            break;
+                    }
+                }
+                if( arn != null ) {
+                    String[] arnParts = arn.split(":");
+                    String ownerAccount = arnParts[4];
+                    return CloudPolicy.getInstance(arn, name, description,
+                            ownerAccount.equalsIgnoreCase("aws") ?
+                                    CloudPolicyType.PROVIDER_MANAGED_POLICY :
+                                    CloudPolicyType.ACCOUNT_MANAGED_POLICY,
+                            null, null);
+                }
+            }
+            return null;
+        } catch (EC2Exception e) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
 
-                            if( attr.getNodeName().equalsIgnoreCase("PolicyDocument") ) {
-                                String json = URLDecoder.decode(attr.getFirstChild().getNodeValue().trim(), "utf-8");
-                                JSONObject stmt = new JSONObject(json);
+    @Override
+    public @Nullable CloudPolicy getPolicy(@Nonnull String providerPolicyId, @Nullable CloudPolicyFilterOptions options) throws CloudException, InternalException {
+        if( options != null && Arrays.binarySearch(options.getPolicyTypes(), CloudPolicyType.INLINE_POLICY) >= 0
+                && (options.getProviderGroupId() != null || options.getProviderUserId() != null )) {
+            if( options.getProviderUserId() != null ) {
+                return getUserPolicy(providerPolicyId, options.getProviderUserId());
+            }
+            else {
+                return getGroupPolicy(providerPolicyId, options.getProviderGroupId());
+            }
+        }
+        return getManagedPolicy(providerPolicyId);
+    }
 
-                                if( stmt.has("Statement") ) {
-                                    return toPolicy(policyName, stmt.getJSONArray("Statement"));
-                                }
+    protected @Nonnull CloudPolicyRule[] getManagedPolicyRules(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getPolicyVersion");
+        try {
+            Map<String, String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            Document doc = invoke(IAMMethod.GET_POLICY, parameters);
+            NodeList blocks = doc.getElementsByTagName("Policy");
+            String defaultVersionId = null;
+            for (int i = 0; i < blocks.getLength(); i++) {
+                NodeList attributes = blocks.item(i).getChildNodes();
+
+                for (int j = 0; j < attributes.getLength(); j++) {
+                    Node attribute = attributes.item(j);
+                    if (!attribute.hasChildNodes()) {
+                        continue;
+                    }
+                    String attrName = attribute.getNodeName();
+                    String value = attribute.getFirstChild().getNodeValue().trim();
+                    switch (attrName.toLowerCase()) {
+                        case "defaultversionid":
+                            defaultVersionId = value;
+                            break;
+                    }
+                }
+            }
+
+
+            parameters.put("VersionId", defaultVersionId);
+            doc = invoke(IAMMethod.GET_POLICY_VERSION, parameters);
+            blocks = doc.getElementsByTagName("PolicyVersion");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node policyNode = blocks.item(i);
+
+                if( policyNode.hasChildNodes() ) {
+                    NodeList attrs = policyNode.getChildNodes();
+
+                    for( int j=0; j<attrs.getLength(); j++ ) {
+                        Node attr = attrs.item(j);
+
+                        if( attr.getNodeName().equalsIgnoreCase("Document") ) {
+                            String json = URLDecoder.decode(attr.getFirstChild().getNodeValue().trim(), "utf-8");
+                            JSONObject stmt = new JSONObject(json);
+
+                            if( stmt.has("Statement") ) {
+                                return toPolicyRules(stmt.getJSONArray("Statement"));
                             }
                         }
                     }
                 }
-                return null;
             }
-            catch( EC2Exception e ) {
-                if( e.getStatus() == 404 ) {
-                    return null;
-                }
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
-            catch( JSONException e ) {
-                logger.error("Failed to parse policy statement: " + e.getMessage());
-                throw new CloudException(e);
-            }
-            catch( UnsupportedEncodingException e ) {
-                logger.error("Unknown encoding in utf-8: " + e.getMessage());
-                throw new InternalException(e);
-            }
+            return new CloudPolicyRule[0];
+        } catch (EC2Exception e) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        catch( JSONException e ) {
+            logger.error("Failed to parse policy statement: " + e.getMessage());
+            throw new CloudException(e);
+        }
+        catch( UnsupportedEncodingException e ) {
+            logger.error("Unknown encoding in utf-8: " + e.getMessage());
+            throw new InternalException(e);
         }
         finally {
-            if( logger.isTraceEnabled() ) {
-                logger.trace("EXIT: " + IAM.class.getName() + ".getUserPolicy()");
-            }
+            APITrace.end();
         }
     }
-    
+
+    protected @Nonnull CloudPolicyRule[] getUserPolicyRules(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getUserPolicyRules");
+        try {
+            CloudUser user = getUser(providerUserId);
+            if( user == null ) {
+                throw new CloudException("No such user: " + providerUserId);
+            }
+
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("UserName", user.getUserName());
+            parameters.put("PolicyName", providerPolicyId);
+            Document doc = invoke(IAMMethod.GET_USER_POLICY, parameters);
+            NodeList blocks = doc.getElementsByTagName("GetUserPolicyResult");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node policyNode = blocks.item(i);
+
+                if( policyNode.hasChildNodes() ) {
+                    NodeList attrs = policyNode.getChildNodes();
+
+                    for( int j=0; j<attrs.getLength(); j++ ) {
+                        Node attr = attrs.item(j);
+
+                        if( attr.getNodeName().equalsIgnoreCase("PolicyDocument") ) {
+                            String json = URLDecoder.decode(attr.getFirstChild().getNodeValue().trim(), "utf-8");
+                            JSONObject stmt = new JSONObject(json);
+
+                            if( stmt.has("Statement") ) {
+                                return toPolicyRules(stmt.getJSONArray("Statement"));
+                            }
+                        }
+                    }
+                }
+            }
+            return new CloudPolicyRule[0];
+        }
+        catch( EC2Exception e ) {
+            if( e.getStatus() == 404 ) {
+                throw new CloudException("No such policy " + providerPolicyId, e);
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        catch( JSONException e ) {
+            logger.error("Failed to parse policy statement: " + e.getMessage());
+            throw new CloudException(e);
+        }
+        catch( UnsupportedEncodingException e ) {
+            logger.error("Unknown encoding in utf-8: " + e.getMessage());
+            throw new InternalException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    protected @Nullable CloudPolicy getUserPolicy(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getGroupPolicy");
+        try {
+            CloudUser user = getUser(providerUserId);
+            if( user == null ) {
+                throw new CloudException("No such user: " + providerUserId);
+            }
+
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("UserName", user.getUserName());
+            parameters.put("PolicyName", providerPolicyId);
+            // we don't need to parse as we already have everything, if the call is successful the policy is there
+            invoke(IAMMethod.GET_USER_POLICY, parameters);
+
+            return CloudPolicy.getInstance(providerPolicyId, providerPolicyId, "Inline policy for user "+user.getUserName(), CloudPolicyType.INLINE_POLICY, providerUserId, null);
+        }
+        catch( EC2Exception e ) {
+            if( e.getStatus() == 404 ) {
+                return null;
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    protected @Nullable CloudPolicy getGroupPolicy(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.getGroupPolicy");
+        try {
+            CloudGroup group = getGroup(providerGroupId);
+            if( group == null ) {
+                throw new CloudException("No such group: " + providerGroupId);
+            }
+
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("GroupName", group.getName());
+            parameters.put("PolicyName", providerPolicyId);
+            // we don't need to parse as we already have everything, if the call is successful the policy is there
+            invoke(IAMMethod.GET_GROUP_POLICY, parameters);
+
+            return CloudPolicy.getInstance(providerPolicyId, providerPolicyId, "Inline policy for group "+group.getName(), CloudPolicyType.INLINE_POLICY, null, providerGroupId);
+        }
+        catch( EC2Exception e ) {
+            if( e.getStatus() == 404 ) {
+                return null;
+            }
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
     @Override
     public boolean isSubscribed() throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.isSubscribed");
+        APITrace.begin(getProvider(), "IAM.isSubscribed");
         try {
-            ComputeServices svc = provider.getComputeServices();
+            ComputeServices svc = getProvider().getComputeServices();
 
             if( svc == null ) {
                 return false;
@@ -638,48 +737,29 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudGroup> listGroups(@Nullable String pathBase) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listGroups");
+        APITrace.begin(getProvider(), "IAM.listGroups");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_GROUPS, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             if( pathBase != null ) {
                 parameters.put("PathPrefix", pathBase);
             }
+            List<CloudGroup> groups = new ArrayList<>();
+            Document doc = invoke(IAMMethod.LIST_GROUPS, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudGroup cloudGroup = toGroup(blocks.item(i));
+                if( cloudGroup != null ) {
+                    groups.add(cloudGroup);
+                }
+            }
             if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+                logger.debug("groups=" + groups);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                ArrayList<CloudGroup> groups = new ArrayList<CloudGroup>();
-
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudGroup cloudGroup = toGroup(ctx, blocks.item(i));
-
-                    if( cloudGroup != null ) {
-                        groups.add(cloudGroup);
-                    }
-                }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("groups=" + groups);
-                }
-                return groups;
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            return groups;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -688,114 +768,274 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudGroup> listGroupsForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listGroupsForUser");
+        APITrace.begin(getProvider(), "IAM.listGroupsForUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
             
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_GROUPS_FOR_USER, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
+            List<CloudGroup> groups = new ArrayList<>();
+
+            Document doc = invoke(IAMMethod.LIST_GROUPS_FOR_USER, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudGroup cloudGroup = toGroup(blocks.item(i));
+                if( cloudGroup != null ) {
+                    groups.add(cloudGroup);
+                }
+            }
             if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+                logger.debug("groups=" + groups);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                ArrayList<CloudGroup> groups = new ArrayList<CloudGroup>();
-
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudGroup cloudGroup = toGroup(ctx, blocks.item(i));
-
-                    if( cloudGroup != null ) {
-                        groups.add(cloudGroup);
-                    }
-                }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("groups=" + groups);
-                }
-                return groups;
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            return groups;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
         }
     }
 
-    @Override
-    public @Nonnull Iterable<CloudPolicy> listPoliciesForGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listPoliciesForGroup");
+    protected @Nonnull List<CloudPolicy> listPoliciesForGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.listPoliciesForGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudGroup group = getGroup(providerGroupId);
-
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_GROUP_POLICIES, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+            List<String> names = new ArrayList<>();
 
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("GroupName", group.getName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
-            try {
-                ArrayList<String> names = new ArrayList<String>();
 
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node member = blocks.item(i);
-                    
-                    if( member.hasChildNodes() ) {
-                        String name = member.getFirstChild().getNodeValue().trim();
-                        
-                        if( name.length() > 0 ) {
-                            names.add(name);
+            Document doc = invoke(IAMMethod.LIST_GROUP_POLICIES, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node member = blocks.item(i);
+
+                if( member.hasChildNodes() ) {
+                    String name = member.getFirstChild().getNodeValue().trim();
+
+                    if( name.length() > 0 ) {
+                        names.add(name);
+                    }
+                }
+            }
+            List<CloudPolicy> policies = new ArrayList<>();
+            for( String name : names ) {
+                policies.add(CloudPolicy.getInstance(name, name, "Inline policy for group " + group.getName(), CloudPolicyType.INLINE_POLICY, null, providerGroupId));
+            }
+
+            if( logger.isDebugEnabled() ) {
+                logger.debug("policies=" + policies);
+            }
+            return policies;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<CloudPolicy> listPolicies(@Nonnull CloudPolicyFilterOptions opts) throws CloudException, InternalException {
+        boolean includeAwsPolicies = Arrays.binarySearch(opts.getPolicyTypes(), CloudPolicyType.PROVIDER_MANAGED_POLICY) >= 0;
+        boolean includeLocalPolicies = Arrays.binarySearch(opts.getPolicyTypes(), CloudPolicyType.ACCOUNT_MANAGED_POLICY) >= 0;
+        boolean includeInlinePolicies = Arrays.binarySearch(opts.getPolicyTypes(), CloudPolicyType.INLINE_POLICY) >= 0;
+        List<CloudPolicy> policies = new ArrayList<>();
+        if( includeAwsPolicies || includeLocalPolicies ) {
+            if( opts.getProviderGroupId() == null && opts.getProviderUserId() == null ) {
+                if (includeAwsPolicies && includeLocalPolicies) {
+                    policies.addAll(listManagedPolicies("All"));
+                } else if (includeAwsPolicies) {
+                    policies.addAll(listManagedPolicies("AWS"));
+                } else {
+                    policies.addAll(listManagedPolicies("Local"));
+                }
+            }
+            else {
+                policies.addAll(listAttachedManagedPolicies(opts.getProviderUserId(), opts.getProviderGroupId()));
+            }
+        }
+        if( includeInlinePolicies ) {
+            if( opts.getProviderGroupId() != null ) {
+                policies.addAll(listPoliciesForGroup(opts.getProviderGroupId()));
+            }
+            if( opts.getProviderUserId() != null ) {
+                policies.addAll(listPoliciesForUser(opts.getProviderUserId()));
+            }
+        }
+        return policies;
+    }
+
+    protected @Nonnull List<CloudPolicy> listManagedPolicies(String scope) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.listPolicies");
+        try {
+            List<CloudPolicy> policies = new ArrayList<>();
+            String marker = null;
+
+            do {
+                Map<String, String> parameters = new HashMap<>();
+                parameters.put("Scope", scope);
+                if( marker != null ) {
+                    parameters.put("Marker", marker);
+                }
+                Document doc = invoke(IAMMethod.LIST_POLICIES, parameters);
+
+                // read the marker - to make sure we read the next page too
+                marker = null;
+                NodeList blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
                         }
                     }
                 }
-                ArrayList<CloudPolicy> policies = new ArrayList<CloudPolicy>();
 
-                for( String name : names ) {
-                    Collections.addAll(policies, getGroupPolicy(group, name));
+                // read all policies from the current page
+                blocks = doc.getElementsByTagName("member");
+                for (int i = 0; i < blocks.getLength(); i++) {
+                    String name = "Unknown";
+                    String description = null;
+                    String arn = null;
+                    NodeList attributes = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<attributes.getLength(); j++ ) {
+                        Node attribute = attributes.item(j);
+                        if( !attribute.hasChildNodes() ) {
+                            continue;
+                        }
+                        String attrName = attribute.getNodeName();
+                        String value = attribute.getFirstChild().getNodeValue().trim();
+                        switch (attrName.toLowerCase()) {
+                            case "arn":
+                                arn = value;
+                                break;
+                            case "policyname":
+                                name = value;
+                                break;
+                            case "description":
+                                description = value;
+                                break;
+                        }
+                    }
+                    if( arn != null ) {
+                        String[] arnParts = arn.split(":");
+                        String ownerAccount = arnParts[4];
+                        policies.add(CloudPolicy.getInstance(arn, name, description,
+                                ownerAccount.equalsIgnoreCase("aws") ?
+                                        CloudPolicyType.PROVIDER_MANAGED_POLICY :
+                                        CloudPolicyType.ACCOUNT_MANAGED_POLICY,
+                                null, null));
+                    }
                 }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("policies=" + policies);
+            } while (marker != null);
+            return policies;
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    protected @Nonnull List<CloudPolicy> listAttachedManagedPolicies(@Nullable String providerUserId, @Nullable String providerGroupId) throws CloudException, InternalException {
+        String memberValue = null;
+        String memberName = null;
+
+        if( providerUserId == null && providerGroupId == null ) {
+            throw new InternalException("Either a providerUserId or providerGroupId must be defined");
+        }
+        else if( providerUserId != null ) {
+            CloudUser user = getUser(providerUserId);
+            if( user == null ) throw new InternalException("User not found: " + providerUserId);
+            memberName = "UserName";
+            memberValue = user.getUserName();
+        }
+        else {
+            CloudGroup group = getGroup(providerGroupId);
+            if( group == null ) throw new InternalException("Group not found: " + providerGroupId);
+            memberName = "GroupName";
+            memberValue = group.getName();
+        }
+        APITrace.begin(getProvider(), providerUserId != null ? "IAM.listAttachedUserPolicies" : "IAM.listAttachedGroupPolicies");
+        try {
+            List<CloudPolicy> policies = new ArrayList<>();
+            String marker = null;
+
+            do {
+                Map<String, String> parameters = new HashMap<>();
+                if( marker != null ) {
+                    parameters.put("Marker", marker);
                 }
-                return policies;
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+                parameters.put(memberName, memberValue);
+
+                Document doc = invoke(
+                        providerUserId != null
+                        ? IAMMethod.LIST_ATTACHED_USER_POLICIES
+                        : IAMMethod.LIST_ATTACHED_GROUP_POLICIES,
+                        parameters);
+
+                // read the marker - to make sure we read the next page too
+                marker = null;
+                NodeList blocks = doc.getElementsByTagName("Marker");
+                if( blocks.getLength() > 0 ) {
+                    for( int i=0; i<blocks.getLength(); i++ ) {
+                        Node item = blocks.item(i);
+
+                        if( item.hasChildNodes() ) {
+                            marker = item.getFirstChild().getNodeValue().trim();
+                        }
+                    }
+                }
+
+                // read all policies from the current page
+                blocks = doc.getElementsByTagName("member");
+                for (int i = 0; i < blocks.getLength(); i++) {
+                    String name = "Unknown";
+                    String arn = null;
+                    NodeList attributes = blocks.item(i).getChildNodes();
+
+                    for( int j=0; j<attributes.getLength(); j++ ) {
+                        Node attribute = attributes.item(j);
+                        if( !attribute.hasChildNodes() ) {
+                            continue;
+                        }
+                        String attrName = attribute.getNodeName();
+                        String value = attribute.getFirstChild().getNodeValue().trim();
+                        switch (attrName.toLowerCase()) {
+                            case "policyarn":
+                                arn = value;
+                                break;
+                            case "policyname":
+                                name = value;
+                                break;
+                        }
+                    }
+                    if( arn != null ) {
+                        String[] arnParts = arn.split(":");
+                        String ownerAccount = arnParts[4];
+                        policies.add(CloudPolicy.getInstance(arn, name, null,
+                                ownerAccount.equalsIgnoreCase("aws") ?
+                                        CloudPolicyType.PROVIDER_MANAGED_POLICY :
+                                        CloudPolicyType.ACCOUNT_MANAGED_POLICY,
+                                // user and group should remain null as they are only used for inline policies
+                                null,
+                                null));
+                    }
+                }
+            } while (marker != null);
+            return policies;
         }
         finally {
             APITrace.end();
@@ -803,61 +1043,82 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public @Nonnull Iterable<CloudPolicy> listPoliciesForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listPoliciesForUser");
-        try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
+    public @Nonnull CloudPolicyRule[] getPolicyRules(@Nonnull String providerPolicyId, @Nullable CloudPolicyFilterOptions options) throws CloudException, InternalException {
+        if( options != null && Arrays.binarySearch(options.getPolicyTypes(), CloudPolicyType.INLINE_POLICY) >= 0) {
+            if( options.getProviderUserId() != null ) {
+                return getUserPolicyRules(options.getProviderUserId(), providerPolicyId);
             }
+            else if( options.getProviderGroupId() != null ) {
+                return getGroupPolicyRules(options.getProviderGroupId(), providerPolicyId);
+            }
+        }
+        return getManagedPolicyRules(providerPolicyId);
+    }
 
+    @SuppressWarnings("unchecked")
+    protected Map<String, List<String>> readServiceActionsYaml() throws InternalException {
+        return (Map<String, List<String>>) new Yaml().loadAs(IAM.class.getResourceAsStream("/org/dasein/cloud/aws/serviceActions.yaml"), Map.class);
+    }
+
+    @Override
+    public @Nonnull Iterable<String> listServices() throws CloudException, InternalException {
+        return readServiceActionsYaml().keySet();
+    }
+
+    @Override
+    public @Nonnull Iterable<ServiceAction> listServiceActions(@Nullable String forService) throws CloudException, InternalException {
+        Map<String, List<String>> map = readServiceActionsYaml();
+        List<ServiceAction> serviceActions = new ArrayList<>();
+        if (forService == null) {
+            for (String key : map.keySet()) {
+                for (String action : map.get(key)) {
+                    serviceActions.add(new ServiceAction(key + ":" + action));
+                }
+            }
+        }
+        else {
+            for (String action : map.get(forService)) {
+                serviceActions.add(new ServiceAction(forService + ":" + action));
+            }
+        }
+        return serviceActions;
+    }
+
+    protected @Nonnull List<CloudPolicy> listPoliciesForUser(@Nonnull String providerUserId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.listPoliciesForUser");
+        try {
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_USER_POLICIES, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
+            List<String> names = new ArrayList<>();
 
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
-            try {
-                ArrayList<String> names = new ArrayList<String>();
-
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    Node member = blocks.item(i);
-
-                    if( member.hasChildNodes() ) {
-                        String name = member.getFirstChild().getNodeValue().trim();
-
-                        if( name.length() > 0 ) {
-                            names.add(name);
-                        }
+            Document doc = invoke(IAMMethod.LIST_USER_POLICIES, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                Node member = blocks.item(i);
+                if( member.hasChildNodes() ) {
+                    String name = member.getFirstChild().getNodeValue().trim();
+                    if( name.length() > 0 ) {
+                        names.add(name);
                     }
                 }
-                ArrayList<CloudPolicy> policies = new ArrayList<CloudPolicy>();
+            }
+            List<CloudPolicy> policies = new ArrayList<>();
+            for( String name : names ) {
+                policies.add(CloudPolicy.getInstance(name, name, "Inline policy for user "+user.getUserName(), CloudPolicyType.INLINE_POLICY, providerUserId, null));
+            }
 
-                for( String name : names ) {
-                    Collections.addAll(policies, getUserPolicy(user, name));
-                }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("policies=" + policies);
-                }
-                return policies;
+            if( logger.isDebugEnabled() ) {
+                logger.debug("policies=" + policies);
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            return policies;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -866,51 +1127,33 @@ public class IAM implements IdentityAndAccessSupport {
     
     @Override
     public @Nonnull Iterable<CloudUser> listUsersInGroup(@Nonnull String inProviderGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.listUsersInGroup");
+        APITrace.begin(getProvider(), "IAM.listUsersInGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudGroup group = getGroup(inProviderGroupId);
-
             if( group == null ) {
                 throw new CloudException("No such group: " + inProviderGroupId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.GET_GROUP, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
 
+            List<CloudUser> users = new ArrayList<>();
+
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("GroupName", group.getName());
+            Document doc = invoke(IAMMethod.GET_GROUP, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudUser user = toUser(blocks.item(i));
+                if( user != null ) {
+                    users.add(user);
+                }
+            }
             if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+                logger.debug("users=" + users);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                ArrayList<CloudUser> users = new ArrayList<CloudUser>();
-                
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser user = toUser(ctx, blocks.item(i));
-
-                    if( user != null ) {
-                        users.add(user);
-                    }
-                }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("users=" + users);
-                }
-                return users;
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            return users;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -919,48 +1162,30 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public @Nonnull Iterable<CloudUser> listUsersInPath(@Nullable String pathBase) throws CloudException, InternalException {
-        APITrace.begin(provider, "listUsersInPath");
+        APITrace.begin(getProvider(), "listUsersInPath");
         try {
-            ProviderContext ctx = provider.getContext();
+            List<CloudUser> users = new ArrayList<>();
 
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.LIST_USERS, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             if( pathBase != null ) {
                 parameters.put("PathPrefix", pathBase);
             }
+            Document doc = invoke(IAMMethod.LIST_USERS, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                CloudUser cloudUser = toUser(blocks.item(i));
+                if( cloudUser != null ) {
+                    users.add(cloudUser);
+                }
+            }
             if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+                logger.debug("users=" + users);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                ArrayList<CloudUser> users = new ArrayList<CloudUser>();
-
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("member");
-                for( int i=0; i<blocks.getLength(); i++ ) {
-                    CloudUser cloudUser = toUser(ctx, blocks.item(i));
-
-                    if( cloudUser != null ) {
-                        users.add(cloudUser);
-                    }
-                }
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("users=" + users);
-                }
-                return users;
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            return users;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -1017,8 +1242,8 @@ public class IAM implements IdentityAndAccessSupport {
         else if( action.equals(IdentityAndAccessSupport.JOIN_GROUP) ) {
             return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.ADD_USER_TO_GROUP };
         }
-        else if( action.equals(IdentityAndAccessSupport.LIST_ACCESS_KEY) ) {
-            return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.LIST_ACCESS_KEY };
+        else if( action.equals(IdentityAndAccessSupport.LIST_ACCESS_KEYS) ) {
+            return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.LIST_ACCESS_KEYS };
         }
         else if( action.equals(IdentityAndAccessSupport.LIST_GROUP) ) {
             return new String[] { IAMMethod.IAM_PREFIX + IAMMethod.LIST_GROUPS + "*" };
@@ -1062,45 +1287,27 @@ public class IAM implements IdentityAndAccessSupport {
         return new String[0];
     }
 
-    public void removeAccessKey(@Nonnull String sharedKeyPart) throws CloudException, InternalException {
-    	//nothing for aws
-    }
-    
     @Override
-    public void removeAccessKey(@Nonnull String sharedKeyPart, @Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeAccessKey");
+    public void removeAccessKey(@Nonnull String sharedKeyPart, @Nullable String providerUserId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.removeAccessKey");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-            CloudUser user = getUser(providerUserId);
-
-            if( user == null ) {
-                return;
-            }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_ACCESS_KEY, IAMMethod.VERSION);
-            IAMMethod method;
-
-            parameters.put("AccessKeyId", sharedKeyPart);
-            parameters.put("UserName", user.getUserName());
-            
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing access key for " + sharedKeyPart);
+            Map<String,String> parameters = new HashMap<>();
+            if( providerUserId != null ) {
+                CloudUser user = getUser(providerUserId);
+                if (user == null) {
+                    throw new CloudException("No such user: " + providerUserId);
                 }
-                method.invoke();
+                parameters.put("UserName", user.getUserName());
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
+            parameters.put("AccessKeyId", sharedKeyPart);
+            if( logger.isInfoEnabled() ) {
+                logger.info("Removing access key for " + sharedKeyPart);
             }
+            invoke(IAMMethod.DELETE_ACCESS_KEY, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -1109,37 +1316,22 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeConsoleAccess(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeConsoleAccess");
+        APITrace.begin(getProvider(), "IAM.removeConsoleAccess");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_LOGIN_PROFILE, IAMMethod.VERSION);
-            IAMMethod method;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            if( logger.isInfoEnabled() ) {
+                logger.info("Removing console access for " + providerUserId);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing console access for " + providerUserId);
-                }
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            invoke(IAMMethod.DELETE_LOGIN_PROFILE, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -1148,79 +1340,47 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeGroup(@Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeGroup");
+        APITrace.begin(getProvider(), "IAM.removeGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudGroup group = getGroup(providerGroupId);
-            
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_GROUP, IAMMethod.VERSION);
-            IAMMethod method;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("GroupName", group.getName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            if( logger.isInfoEnabled() ) {
+                logger.info("Removing group " + providerGroupId);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing group " + providerGroupId);
-                }
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            invoke(IAMMethod.DELETE_GROUP, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
         }
     }
 
-    @Override
-    public void removeGroupPolicy(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeGroupPolicy");
+    protected void removeGroupPolicy(@Nonnull String providerGroupId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.removeGroupPolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudGroup group = getGroup(providerGroupId);
-
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_GROUP_POLICY, IAMMethod.VERSION);
-            EC2Method method;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("GroupName", group.getName());
             parameters.put("PolicyName", providerPolicyId);
-
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            if( logger.isInfoEnabled() ) {
+                logger.info("Removing policy for group " + providerGroupId);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing policy for group " + providerGroupId);
-                }
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            invoke(IAMMethod.DELETE_GROUP_POLICY, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -1230,79 +1390,50 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeUser(@Nonnull String providerUserId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeUser");
+        APITrace.begin(getProvider(), "IAM.removeUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
-            
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_USER, IAMMethod.VERSION);
-            IAMMethod method;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
-            }
-            method = new IAMMethod(provider, parameters);
             try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing user " + providerUserId);
-                }
-                method.invoke();
+                invoke(IAMMethod.DELETE_LOGIN_PROFILE, parameters);
             }
             catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
+                // ignore
             }
+            invoke(IAMMethod.DELETE_USER, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
         }
     }
 
-    @Override
-    public void removeUserPolicy(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeUserPolicy");
+    protected void removeUserPolicy(@Nonnull String providerUserId, @Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.removeUserPolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.DELETE_USER_POLICY, IAMMethod.VERSION);
-            EC2Method method;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
             parameters.put("PolicyName", providerPolicyId);
-
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            if( logger.isInfoEnabled() ) {
+                logger.info("Removing policy for user " + providerUserId);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing policy for user " + providerUserId);
-                }
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            invoke(IAMMethod.DELETE_USER_POLICY, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -1312,46 +1443,29 @@ public class IAM implements IdentityAndAccessSupport {
 
     @Override
     public void removeUserFromGroup(@Nonnull String providerUserId, @Nonnull String providerGroupId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.removeUserFromGroup");
+        APITrace.begin(getProvider(), "IAM.removeUserFromGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
 
             CloudGroup group = getGroup(providerGroupId);
-
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.REMOVE_USER_FROM_GROUP, IAMMethod.VERSION);
-            IAMMethod method;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
             parameters.put("GroupName", group.getName());
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            if( logger.isInfoEnabled()) {
+                logger.info("Removing user " + providerUserId + " from " + providerGroupId);
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Removing user " + providerUserId + " from " + providerGroupId);
-                }
-                method.invoke();
-            }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+            invoke(IAMMethod.REMOVE_USER_FROM_GROUP, parameters);
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
@@ -1359,27 +1473,15 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public void saveGroup(@Nonnull String providerGroupId, @Nullable String newGroupName, @Nullable String newPath) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveGroup");
+    public void modifyGroup(@Nonnull String providerGroupId, @Nullable String newGroupName, @Nullable String newPath) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.saveGroup");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-
             CloudGroup group = getGroup(providerGroupId);
-
             if( group == null ) {
                 throw new CloudException("No such group: " + providerGroupId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.UPDATE_GROUP, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("GroupName", group.getName());
             if( newGroupName != null) {
                 parameters.put("NewGroupName", providerGroupId);
@@ -1387,177 +1489,117 @@ public class IAM implements IdentityAndAccessSupport {
             if( newPath != null ) {
                 parameters.put("NewPath", newPath);
             }
-            if( logger.isDebugEnabled() ) {
-                logger.debug("parameters=" + parameters);
+            if( logger.isInfoEnabled() ) {
+                logger.info("Updating group " + providerGroupId + " with " + newPath + " - " + newGroupName + "...");
             }
-            method = new IAMMethod(provider, parameters);
-            try {
-                if( logger.isInfoEnabled() ) {
-                    logger.info("Updating group " + providerGroupId + " with " + newPath + " - " + newGroupName + "...");
-                }
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("Group");
-                if( blocks.getLength() < 1 ) {
-                    logger.error("No group was updated as a result of the request");
-                    throw new CloudException("No group was updated as a result of the request");
-                }
+            Document doc = invoke(IAMMethod.UPDATE_GROUP, parameters);
+            NodeList blocks = doc.getElementsByTagName("Group");
+            if( blocks.getLength() < 1 ) {
+                logger.error("No group was updated as a result of the request");
+                throw new CloudException("No group was updated as a result of the request");
             }
-            catch( EC2Exception e ) {
-                logger.error(e.getSummary());
-                throw new CloudException(e);
-            }
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
         }
     }
 
-    @Override
-    public @Nonnull String[] saveGroupPolicy(@Nonnull String providerGroupId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveGroupPolicy");
+
+    protected @Nonnull String modifyInlinePolicy(@Nonnull CloudPolicyOptions options) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.modifyInlinePolicy");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-            CloudGroup group = getGroup(providerGroupId);
-
-            if( group == null ) {
-                throw new CloudException("No such group: " + providerGroupId);
-            }
-
-            String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
-            String[] ids = new String[actions.length];
-            int i = 0;
-
-            for( String actionId : actions ) {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_GROUP_POLICY, IAMMethod.VERSION);
-                String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
-
-                EC2Method method;
-
-                parameters.put("GroupName", group.getName());
-                parameters.put("PolicyName", policyName);
-    
-                ArrayList<Map<String,Object>> policies = new ArrayList<Map<String, Object>>();
-                HashMap<String,Object> statement = new HashMap<String, Object>();
-                HashMap<String,Object> policy = new HashMap<String, Object>();
-    
-                policy.put("Effect", permission.equals(CloudPermission.ALLOW) ? "Allow" : "Deny");
-                policy.put("Action", actionId);
-                policy.put("Resource", resourceId == null ? "*" : resourceId);
-                policies.add(policy);
-                statement.put("Statement", policies);
-                
-                parameters.put("PolicyDocument", (new JSONObject(statement)).toString());
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("parameters=" + parameters);
+            Map<String,String> parameters = new HashMap<>();
+            String action;
+            if( options.getProviderUserId() != null ) {
+                CloudUser user = getUser(options.getProviderUserId());
+                if( user == null ) {
+                    throw new InternalException("User not found: "+ options.getProviderUserId());
                 }
-                method = new IAMMethod(provider, parameters);
-                try {
-                    if( logger.isInfoEnabled() ) {
-                        logger.info("Updating policy for group " + providerGroupId);
-                    }
-                    method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                ids[i++] = policyName;
-            }
-            return ids;
-        }
-        finally {
-            APITrace.end();
-        }
-    }
-
-    @Override
-    public String[] saveUserPolicy(@Nonnull String providerUserId, @Nonnull String name, @Nonnull CloudPermission permission, @Nullable ServiceAction action, @Nullable String resourceId) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveUserPolicy");
-        try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for this request.");
-                throw new InternalException("No context was established for this request");
-            }
-            CloudUser user = getUser(providerUserId);
-
-            if( user == null ) {
-                throw new CloudException("No such user: " + providerUserId);
-            }
-
-            String[] actions = (action == null ? new String[] { "*" } : action.map(provider));
-            String[] ids = new String[actions.length];
-            int i = 0;
-
-            for( String actionId : actions ) {
-                Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.PUT_USER_POLICY, IAMMethod.VERSION);
-                String policyName = name + "+" + (actionId.equals("*") ? "ANY" : actionId.replaceAll(":", "_"));
-                EC2Method method;
-
+                action = IAMMethod.PUT_USER_POLICY;
                 parameters.put("UserName", user.getUserName());
-                parameters.put("PolicyName", policyName);
-
-                ArrayList<Map<String,Object>> policies = new ArrayList<Map<String, Object>>();
-                HashMap<String,Object> statement = new HashMap<String, Object>();
-                HashMap<String,Object> policy = new HashMap<String, Object>();
-
-                policy.put("Effect", permission.equals(CloudPermission.ALLOW) ? "Allow" : "Deny");
-                policy.put("Action", actionId);
-                policy.put("Resource", resourceId == null ? "*" : resourceId);
-                policies.add(policy);
-                statement.put("Statement", policies);
-
-                parameters.put("PolicyDocument", (new JSONObject(statement)).toString());
-                if( logger.isDebugEnabled() ) {
-                    logger.debug("parameters=" + parameters);
-                }
-                method = new IAMMethod(provider, parameters);
-                try {
-                    if( logger.isInfoEnabled() ) {
-                        logger.info("Updating policy for user " + providerUserId);
-                    }
-                    method.invoke();
-                }
-                catch( EC2Exception e ) {
-                    logger.error(e.getSummary());
-                    throw new CloudException(e);
-                }
-                ids[i++] = policyName;
             }
-            return ids;
+            else if( options.getProviderGroupId() != null ) {
+                CloudGroup group = getGroup(options.getProviderGroupId());
+                if( group == null ) {
+                    throw new InternalException("Group not found: "+ options.getProviderGroupId());
+                }
+                action = IAMMethod.PUT_GROUP_POLICY;
+                parameters.put("GroupName", group.getName());
+            }
+            else {
+                throw new InternalException("Either a user or a group has to be selected for this operation.");
+            }
+            parameters.put("PolicyName", options.getName());
+            parameters.put("PolicyDocument", toPolicyDocument(options.getRules()).toString());
+
+            invoke(action, parameters);
+            return options.getName();
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
         }
         finally {
             APITrace.end();
         }
     }
+    protected String toResourceString(@Nonnull String[] resources) {
+        if( resources.length == 0) {
+            return "*";
+        }
+        if( resources.length == 1) {
+            return resources[0];
+        }
+        int max = resources.length - 1;
+        StringBuilder sb = new StringBuilder("[");
+        for( int i = 0; i<resources.length; i++ ) {
+            sb.append("\"").append(resources[i]).append("\"");
+            if( i < max ) {
+                sb.append(",");
+            }
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    protected JSONObject toPolicyDocument(@Nonnull CloudPolicyRule[] rules) {
+        Map<String,Object> statement = new HashMap<>();
+        List<Map<String,Object>> policies = new ArrayList<>();
+        for( CloudPolicyRule rule : rules ) {
+            Map<String,Object> policy = new HashMap<>();
+            policy.put("Effect", rule.getPermission().equals(CloudPermission.ALLOW) ? "Allow" : "Deny");
+            policy.put("Resource", toResourceString(rule.getResources()));
+            if( rule.getActions().length == 0 ) {
+                policy.put("Action", "*");
+            }
+            else {
+                List<String> actions = new ArrayList<>();
+                for( ServiceAction action : rule.getActions() ) {
+                    actions.add(action.getActionId());
+                }
+                policy.put("Action", actions);
+            }
+            policies.add(policy);
+        }
+        statement.put("Statement", policies);
+        statement.put("Version", "2012-10-17");
+        return new JSONObject(statement);
+    }
 
     @Override
-    public void saveUser(@Nonnull String providerUserId, @Nullable String newUserName, @Nullable String newPath) throws CloudException, InternalException {
-        APITrace.begin(provider, "IAM.saveUser");
+    public void modifyUser(@Nonnull String providerUserId, @Nullable String newUserName, @Nullable String newPath) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.saveUser");
         try {
-            ProviderContext ctx = provider.getContext();
-
-            if( ctx == null ) {
-                logger.error("No context was established for the request.");
-                throw new InternalException("No context was established for this request");
-            }
             CloudUser user = getUser(providerUserId);
-
             if( user == null ) {
                 throw new CloudException("No such user: " + providerUserId);
             }
 
-            Map<String,String> parameters = provider.getStandardParameters(provider.getContext(), IAMMethod.UPDATE_USER, IAMMethod.VERSION);
-            EC2Method method;
-            NodeList blocks;
-            Document doc;
-
+            Map<String,String> parameters = new HashMap<>();
             parameters.put("UserName", user.getUserName());
             if( newUserName != null ) {
                 parameters.put("NewUserName", newUserName);
@@ -1565,20 +1607,47 @@ public class IAM implements IdentityAndAccessSupport {
             if( newPath != null ) {
                 parameters.put("NewPath", newPath);
             }
+            if( logger.isInfoEnabled() ) {
+                logger.info("Updating user " + providerUserId + " with " + newPath + " - " + newUserName + "...");
+            }
+            Document doc = invoke(IAMMethod.UPDATE_USER, parameters);
+            NodeList blocks = doc.getElementsByTagName("User");
+            if( blocks.getLength() < 1 ) {
+                logger.error("No user was updated as a result of the request");
+                throw new CloudException("No user was updated as a result of the request");
+            }
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    protected void updateAccessKey(@Nonnull String sharedKeyPart, @Nullable String providerUserId, boolean enable) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "updateAccessKey");
+        try {
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("AccessKeyId", sharedKeyPart);
+            parameters.put("Status", enable ? "Active" : "Inactive");
+            if( providerUserId != null ) {
+                CloudUser user = getUser(providerUserId);
+                if (user == null) {
+                    throw new CloudException("No such user: " + providerUserId);
+                }
+                parameters.put("UserName", user.getUserName());
+            }
+
             if( logger.isDebugEnabled() ) {
                 logger.debug("parameters=" + parameters);
             }
-            method = new IAMMethod(provider, parameters);
             try {
                 if( logger.isInfoEnabled() ) {
-                    logger.info("Updating user " + providerUserId + " with " + newPath + " - " + newUserName + "...");
+                    logger.info("Updating access key for " + (providerUserId == null ? getContext().getAccountNumber() : providerUserId));
                 }
-                doc = method.invoke();
-                blocks = doc.getElementsByTagName("User");
-                if( blocks.getLength() < 1 ) {
-                    logger.error("No user was updated as a result of the request");
-                    throw new CloudException("No user was updated as a result of the request");
-                }
+                invoke(IAMMethod.UPDATE_ACCESS_KEY, parameters);
             }
             catch( EC2Exception e ) {
                 logger.error(e.getSummary());
@@ -1591,31 +1660,287 @@ public class IAM implements IdentityAndAccessSupport {
     }
 
     @Override
-    public boolean supportsAccessControls() throws CloudException, InternalException {
-        return true;
+    public void enableAccessKey(@Nonnull String sharedKeyPart, @Nullable String providerUserId) throws CloudException, InternalException {
+        updateAccessKey(sharedKeyPart, providerUserId, true);
     }
 
     @Override
-    public boolean supportsConsoleAccess() throws CloudException, InternalException {
-        return true;
+    public void disableAccessKey(@Nonnull String sharedKeyPart, @Nullable String providerUserId) throws CloudException, InternalException {
+        updateAccessKey(sharedKeyPart, providerUserId, false);
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<AccessKey> listAccessKeys(@Nullable String providerUserId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "listAccessKeys");
+        try {
+            Map<String,String> parameters = new HashMap<>();
+            if( providerUserId != null ) {
+                CloudUser user = getUser(providerUserId);
+
+                if (user == null) {
+                    throw new CloudException("No such user: " + providerUserId);
+                }
+                parameters.put("UserName", user.getUserName());
+            }
+            if( logger.isDebugEnabled() ) {
+                logger.debug("parameters=" + parameters);
+            }
+            try {
+                if( logger.isInfoEnabled() ) {
+                    logger.info("Listing access keys for " + (providerUserId == null ? getContext().getAccountNumber() : providerUserId));
+                }
+                Document doc = invoke(IAMMethod.LIST_ACCESS_KEYS, parameters);
+                NodeList blocks = doc.getElementsByTagName("AccessKeyMetadata");
+                List<AccessKey> accessKeys = new ArrayList<>();
+                for( int i=0; i<blocks.getLength(); i++ ) {
+                    accessKeys.add(toAccessKey(blocks.item(i)));
+                }
+                logger.info("Found " + accessKeys.size() + " keys.");
+                return accessKeys;
+            }
+            catch( EC2Exception e ) {
+                logger.error(e.getSummary());
+                throw new CloudException(e);
+            }
+        }
+        finally {
+            APITrace.end();
+        }
     }
 
     @Override
-    public boolean supportsAPIAccess() throws CloudException, InternalException {
-        return true;
+    public @Nonnull String createPolicy(@Nonnull CloudPolicyOptions options) throws CloudException, InternalException {
+        if( options.getProviderUserId() != null || options.getProviderGroupId() != null ) {
+            modifyInlinePolicy(options);
+            return options.getName();
+        }
+        else {
+            return createManagedPolicy(options);
+        }
     }
-    
-    private @Nullable AccessKey toAccessKey(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+
+    @Override
+    public void modifyPolicy(@Nonnull String providerPolicyId, @Nonnull CloudPolicyOptions options) throws CloudException, InternalException {
+        if( options.getProviderUserId() != null || options.getProviderGroupId() != null ) {
+            modifyInlinePolicy(options);
+        }
+        else {
+            modifyManagedPolicy(providerPolicyId, options);
+        }
+    }
+
+    protected void modifyManagedPolicy(@Nonnull String providerPolicyId, @Nonnull CloudPolicyOptions options) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.modifyManagedPolicy");
+        try {
+            Map<String, String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            parameters.put("PolicyDocument", toPolicyDocument(options.getRules()).toString());
+            // new versions always take effect
+            parameters.put("SetAsDefault", "true");
+            invoke(IAMMethod.CREATE_POLICY_VERSION, parameters);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    protected @Nonnull String createManagedPolicy(@Nonnull CloudPolicyOptions options) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.modifyManagedPolicy");
+        try {
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("PolicyName", options.getName());
+            AWSCloud.addValueIfNotNull(parameters, "Description", options.getDescription());
+            parameters.put("PolicyDocument", toPolicyDocument(options.getRules()).toString());
+            Document doc = invoke(IAMMethod.CREATE_POLICY, parameters);
+            NodeList blocks = doc.getElementsByTagName("Policy");
+            for (int i = 0; i < blocks.getLength(); i++) {
+                NodeList attributes = blocks.item(i).getChildNodes();
+
+                for (int j = 0; j < attributes.getLength(); j++) {
+                    Node attribute = attributes.item(j);
+                    if (!attribute.hasChildNodes()) {
+                        continue;
+                    }
+                    String attrName = attribute.getNodeName();
+                    String value = attribute.getFirstChild().getNodeValue().trim();
+                    if( "arn".equalsIgnoreCase(attrName) ) {
+                        return value;
+                    }
+                }
+            }
+        }
+        finally {
+            APITrace.end();
+        }
+        throw new InternalException("Unable to create a managed policy: " + options);
+    }
+
+    @Override
+    public void removePolicy(@Nonnull String providerPolicyId, @Nullable CloudPolicyFilterOptions options) throws CloudException, InternalException {
+        if( options != null && Arrays.binarySearch(options.getPolicyTypes(), CloudPolicyType.INLINE_POLICY) >= 0) {
+            if( options.getProviderUserId() != null ) {
+                removeUserPolicy(options.getProviderUserId(), providerPolicyId);
+                return;
+            }
+            else if( options.getProviderGroupId() != null ) {
+                removeGroupPolicy(options.getProviderGroupId(), providerPolicyId);
+                return;
+            }
+        }
+        removeManagedPolicy(providerPolicyId);
+    }
+
+    protected void removeManagedPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.removeManagedPolicy");
+        try {
+            Map<String, String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            invoke(IAMMethod.DELETE_POLICY, parameters);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Nonnull
+    @Override
+    public Iterable<CloudUser> listUsersForPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        List<CloudUser> users = new ArrayList<>();
+        for( String userName : listEntitiesForPolicy(providerPolicyId, true) ) {
+            try {
+                CloudUser user = getUserByName(userName);
+                if( user != null ) {
+                    users.add(user);
+                }
+            } catch( Throwable ignore) {}
+        }
+        return users;
+    }
+
+
+    @Nonnull
+    @Override
+    public Iterable<CloudGroup> listGroupsForPolicy(@Nonnull String providerPolicyId) throws CloudException, InternalException {
+        List<CloudGroup> groups = new ArrayList<>();
+        for( String groupName : listEntitiesForPolicy(providerPolicyId, false) ) {
+            try {
+                CloudGroup group = getGroupByName(groupName);
+                if( group != null ) {
+                    groups.add(group);
+                }
+            } catch( Throwable ignore) {}
+        }
+        return groups;
+    }
+
+    protected List<String> listEntitiesForPolicy(@Nonnull String providerPolicyId, boolean users) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), "IAM.listEntitiesForPolicy");
+        try {
+            Map<String,String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            parameters.put("EntityFilter", users ? "User" : "Group");
+            List<String> entities = new ArrayList<>();
+
+            Document doc = invoke(IAMMethod.LIST_ENTITIES_FOR_POLICY, parameters);
+            NodeList blocks = doc.getElementsByTagName("member");
+            for( int i=0; i<blocks.getLength(); i++ ) {
+                NodeList attributes = blocks.item(i).getChildNodes();
+                for( int j=0; j<attributes.getLength(); j++ ) {
+                    Node attribute = attributes.item(j);
+                    String attrName = attribute.getNodeName();
+                    if (attrName.equalsIgnoreCase(users ? "UserName" : "GroupName") && attribute.hasChildNodes()) {
+                        entities.add(attribute.getFirstChild().getNodeValue().trim());
+                    }
+                }
+            }
+            return entities;
+        }
+        catch( EC2Exception e ) {
+            logger.error(e.getSummary());
+            throw new CloudException(e);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void attachPolicyToUser(@Nonnull String providerPolicyId, @Nonnull String providerUserId) throws CloudException, InternalException {
+        attachDetachUserPolicy(providerPolicyId, providerUserId, true);
+    }
+
+    @Override
+    public void detachPolicyFromUser(@Nonnull String providerPolicyId, @Nonnull String providerUserId) throws CloudException, InternalException {
+        attachDetachUserPolicy(providerPolicyId, providerUserId, false);
+    }
+
+    protected void attachDetachUserPolicy(@Nonnull String providerPolicyId, @Nonnull String providerUserId, boolean attach) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), attach ? "IAM.attachPolicyToUser" : "IAM.detachPolicyToUser");
+        try {
+            CloudUser user = getUser(providerUserId);
+            if (user == null) {
+                throw new CloudException("No such user: " + providerUserId);
+            }
+
+            Map<String, String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            parameters.put("UserName", user.getUserName());
+            invoke(attach? IAMMethod.ATTACH_USER_POLICY : IAMMethod.DETACH_USER_POLICY, parameters);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+    @Override
+    public void attachPolicyToGroup(@Nonnull String providerPolicyId, @Nonnull String providerGroupId) throws CloudException, InternalException {
+        attachDetachGroupPolicy(providerPolicyId, providerGroupId, true);
+    }
+
+    @Override
+    public void detachPolicyFromGroup(@Nonnull String providerPolicyId, @Nonnull String providerGroupId) throws CloudException, InternalException {
+        attachDetachGroupPolicy(providerPolicyId, providerGroupId, false);
+    }
+
+    protected void attachDetachGroupPolicy(@Nonnull String providerPolicyId, @Nonnull String providerGroupId, boolean attach) throws CloudException, InternalException {
+        APITrace.begin(getProvider(), attach ? "IAM.attachPolicyToGroup" : "IAM.detachPolicyToGroup");
+        try {
+            CloudGroup group = getGroup(providerGroupId);
+            if (group == null) {
+                throw new CloudException("No such group: " + providerGroupId);
+            }
+
+            Map<String, String> parameters = new HashMap<>();
+            parameters.put("PolicyArn", providerPolicyId);
+            parameters.put("GroupName", group.getName());
+            invoke(attach ? IAMMethod.ATTACH_GROUP_POLICY : IAMMethod.DETACH_GROUP_POLICY, parameters);
+        }
+        finally {
+            APITrace.end();
+        }
+    }
+
+    @Override
+    public void updateConsoleAccess(@Nonnull String providerUserId, @Nonnull byte[] oldPassword, @Nonnull byte[] newPassword) throws CloudException, InternalException {
+        super.updateConsoleAccess(providerUserId, oldPassword, newPassword);
+    }
+
+    @Nullable
+    @Override
+    public String getConsoleUrl() throws CloudException, InternalException {
+        return super.getConsoleUrl();
+    }
+
+    private @Nullable AccessKey toAccessKey(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
         NodeList attributes = node.getChildNodes();
-        AccessKey key = new AccessKey();
-
-        key.setProviderOwnerId(ctx.getAccountNumber());
-
         String userName = null;
-        
+        String userId = null;
+        String sharedKey = null;
+        byte[] privateKey = null;
+        boolean enabled = true;
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
             String attrName = attribute.getNodeName();
@@ -1623,12 +1948,12 @@ public class IAM implements IdentityAndAccessSupport {
             if( attrName.equalsIgnoreCase("UserName") && attribute.hasChildNodes() ) {
                 userName = attribute.getFirstChild().getNodeValue().trim();
             }
-            else if( attrName.equalsIgnoreCase("AccessKeyId") && attribute.hasChildNodes() ) {
-                key.setSharedPart(attribute.getFirstChild().getNodeValue().trim());
+            else if( attrName.equalsIgnoreCase("AccessKeyId") && attribute.hasChildNodes()) {
+                sharedKey = attribute.getFirstChild().getNodeValue().trim();
             }
             else if( attrName.equalsIgnoreCase("SecretAccessKey") && attribute.hasChildNodes() ) {
                 try {
-                    key.setSecretPart(attribute.getFirstChild().getNodeValue().trim().getBytes("utf-8"));
+                    privateKey = attribute.getFirstChild().getNodeValue().trim().getBytes("utf-8");
                 }
                 catch( UnsupportedEncodingException e ) {
                     throw new InternalException(e);
@@ -1636,7 +1961,7 @@ public class IAM implements IdentityAndAccessSupport {
             }
             else if( attrName.equalsIgnoreCase("Status") ) {
                 if( !attribute.hasChildNodes() || !attribute.getFirstChild().getNodeValue().trim().equalsIgnoreCase("Active") ) {
-                    return null;
+                    enabled = false;
                 }
             }
         }
@@ -1644,24 +1969,25 @@ public class IAM implements IdentityAndAccessSupport {
             CloudUser user = getUserByName(userName);
             
             if( user == null ) {
-                logger.warn("Found key " + key.getSharedPart() + " belonging to " + userName + ", but no matching user");
+                logger.warn("Found key " + sharedKey + " belonging to " + userName + ", but no matching user");
                 return null;
             }
-            String userId = user.getProviderUserId();
+            userId = user.getProviderUserId();
 
             if( userId == null ) {
-                logger.warn("Found key " + key.getSharedPart() + " belonging to " + userName + ", but no matching user");
+                logger.warn("Found key " + sharedKey + " belonging to " + userName + ", but no matching user");
                 return null;
             }
-            key.setProviderUserId(userId);
         }
-        if( key.getSharedPart() == null || key.getSecretPart() == null ) {
+        if( sharedKey == null || privateKey == null ) {
             return null;
         }
-        return key;
+        return AccessKey.getInstance(sharedKey, privateKey, enabled)
+                .withProviderOwnerId(getContext().getAccountNumber())
+                .withProviderUserId(userId);
     }
 
-    private @Nullable CloudGroup toGroup(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+    private @Nullable CloudGroup toGroup(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
@@ -1669,7 +1995,7 @@ public class IAM implements IdentityAndAccessSupport {
         CloudGroup group = new CloudGroup();
 
         group.setPath("/");
-        group.setProviderOwnerId(ctx.getAccountNumber());
+        group.setProviderOwnerId(getContext().getAccountNumber());
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
             String attrName = attribute.getNodeName();
@@ -1690,170 +2016,60 @@ public class IAM implements IdentityAndAccessSupport {
         return group;
     }
 
+    private @Nonnull CloudPolicyRule[] toPolicyRules(@Nonnull JSONArray policyStatements) throws JSONException {
+        List<CloudPolicyRule> rules = new ArrayList<>();
 
-    private @Nullable CloudPolicy[] toPolicy(@Nonnull String policyName, @Nonnull JSONArray policyStatements) throws JSONException {
-        ArrayList<CloudPolicy> policyList = new ArrayList<CloudPolicy>();
-        
         for( int i=0; i<policyStatements.length(); i++ ) {
             JSONObject policyStatement = policyStatements.getJSONObject(i);
-            String effect = (policyStatement.has("Effect") ? policyStatement.getString("Effect") : null);
-            String action = (policyStatement.has("Action") ? policyStatement.getString("Action") : null);
-            String resource = (policyStatement.has("Resource") ? policyStatement.getString("Resource") : null);
-            
+            String effect = policyStatement.optString("Effect");
+            Object actionObj = policyStatement.opt("Action");
+            Object resourcesObj = policyStatement.opt("Resource");
             if( effect == null ) {
-                return null;
+                continue;
             }
             CloudPermission permission = (effect.equalsIgnoreCase("allow") ? CloudPermission.ALLOW : CloudPermission.DENY);
+            boolean exceptActions = false;
+            if( actionObj == null ) {
+                actionObj = policyStatement.optString("NotAction");
+                exceptActions = true;
+            }
+
             ServiceAction[] serviceActions = null;
-            String resourceId = null;
-            
-            if( action != null ) {
-                if( action.equals("*") ) {
-                    serviceActions = null;
+            if( actionObj != null ) {
+                if (actionObj instanceof JSONArray) {
+                    JSONArray actions = (JSONArray) actionObj;
+                    List<ServiceAction> actionList = new ArrayList<>();
+                    for (int j = 0; j < actions.length(); j++) {
+                        actionList.add(new ServiceAction(actions.getString(j)));
+                    }
+                    serviceActions = actionList.toArray(new ServiceAction[actionList.size()]);
+                }
+            }
+
+            CloudPolicyRule rule = CloudPolicyRule.getInstance(permission, exceptActions, serviceActions);
+
+            if( resourcesObj != null ) {
+                List<String> resourceList = new ArrayList<>();
+                if( resourcesObj instanceof JSONArray) {
+                    JSONArray resources = (JSONArray) resourcesObj;
+                    for( int j = 0; j < resources.length(); j++ ) {
+                        resourceList.add(resources.getString(j));
+                    }
                 }
                 else {
-                    int idx = action.indexOf(":");
-                    String svc;
-                    
-                    if( idx < 1 ) {
-                        svc = "ec2";
-                        if( idx == 0 ) {
-                            if( action.length() > 1 ) {
-                                action = action.substring(1);                            
-                            }
-                            else {
-                                action = "*";
-                            }
-                        }
-                    }
-                    else if( idx == action.length()-1 ) {
-                        svc = action.substring(0, idx);
-                        action = "*";
-                    }
-                    else {
-                        svc = action.substring(0, idx);
-                        action = action.substring(idx+1);                    
-                    }
-                    if( action.equals("*") ) {
-                        action = null;
-                    }
-                    svc = svc + ":";
-                    if( svc.equals(IAMMethod.IAM_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { IdentityAndAccessSupport.ANY };
-                        }
-                        else {
-                            serviceActions = IAMMethod.asIAMServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.EC2_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] {
-                                    PrepaymentSupport.ANY,
-                                    VirtualMachineSupport.ANY, 
-                                    MachineImageSupport.ANY, 
-                                    VolumeSupport.ANY,
-                                    SnapshotSupport.ANY, 
-                                    IpAddressSupport.ANY, 
-                                    FirewallSupport.ANY, 
-                                    ShellKeySupport.ANY
-                            };
-                        }
-                        else {
-                            serviceActions = EC2Method.asEC2ServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(Route53Method.R53_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { DNSSupport.ANY };
-                        }
-                        else {
-                            serviceActions = Route53Method.asRoute53ServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(ELBMethod.ELB_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { LoadBalancerSupport.ANY };
-                        }
-                        else {
-                            serviceActions = ELBMethod.asELBServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(CloudFrontMethod.CF_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { CDNSupport.ANY };
-                        }
-                        else {
-                            serviceActions = CloudFrontMethod.asCloudFrontServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.AUTOSCALING_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { AutoScalingSupport.ANY };
-                        }
-                        else {
-                            serviceActions = EC2Method.asAutoScalingServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.RDS_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { RelationalDatabaseSupport.ANY };
-                        }
-                        else {
-                            serviceActions = RDS.asRDSServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.SDB_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { KeyValueDatabaseSupport.ANY };
-                        }
-                        else {
-                            serviceActions = SimpleDB.asSimpleDBServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.SNS_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { PushNotificationSupport.ANY };
-                        }
-                        else {
-                            serviceActions = SNS.asSNSServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(EC2Method.SQS_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { MQSupport.ANY };
-                        }
-                        else {
-                            serviceActions = SQS.asSQSServiceAction(action);
-                        }
-                    }
-                    else if( svc.equals(S3Method.S3_PREFIX) ) {
-                        if( action == null ) {
-                            serviceActions = new ServiceAction[] { BlobStoreSupport.ANY };
-                        }
-                        else {
-                            serviceActions = S3Method.asS3ServiceAction(action);
-                        }
-                    }
-                    else {
-                        serviceActions = new ServiceAction[0];
+                    String resource = (String) resourcesObj;
+                    if( !"*".equalsIgnoreCase(resource) ) {
+                        resourceList.add(resource);
                     }
                 }
+                rule.withResources(resourceList.toArray(new String[resourceList.size()]));
             }
-            if( resource != null && !resource.equals("*") ) {
-                resourceId = resource;
-            }
-            if( serviceActions == null ) {
-                return new CloudPolicy[] { CloudPolicy.getInstance(policyName, policyName, permission, null, resourceId) };
-            }
-            for( ServiceAction sa : serviceActions ) {
-                policyList.add(CloudPolicy.getInstance(policyName, policyName, permission, sa, resourceId));
-            }
+            rules.add(rule);
         }
-        return policyList.toArray(new CloudPolicy[policyList.size()]);
+        return rules.toArray(new CloudPolicyRule[rules.size()]);
     }
-    
-    private @Nullable CloudUser toUser(@Nonnull ProviderContext ctx, @Nullable Node node) throws CloudException, InternalException {
+
+    private @Nullable CloudUser toUser(@Nullable Node node) throws CloudException, InternalException {
         if( node == null ) {
             return null;
         }
@@ -1861,7 +2077,7 @@ public class IAM implements IdentityAndAccessSupport {
         CloudUser user = new CloudUser();
 
         user.setPath("/");
-        user.setProviderOwnerId(ctx.getAccountNumber());
+        user.setProviderOwnerId(getContext().getAccountNumber());
         for( int i=0; i<attributes.getLength(); i++ ) {
             Node attribute = attributes.item(i);
             String attrName = attribute.getNodeName();

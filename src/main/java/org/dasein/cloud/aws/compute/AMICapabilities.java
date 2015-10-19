@@ -130,6 +130,11 @@ public class AMICapabilities extends AbstractCapabilities<AWSCloud> implements I
     }
 
     @Override
+    public boolean supportsImageRemoval() throws CloudException, InternalException {
+        return true;
+    }
+
+    @Override
     public boolean supportsImageSharing() {
         return getProvider().getEC2Provider().isAWS();
     }

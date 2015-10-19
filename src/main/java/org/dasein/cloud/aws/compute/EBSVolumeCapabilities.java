@@ -69,16 +69,6 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
     }
 
     @Override
-    public int getMaximumVolumeProductIOPS() throws InternalException, CloudException {
-        return 0;
-    }
-
-    @Override
-    public int getMinimumVolumeProductIOPS() throws InternalException, CloudException {
-        return 0;
-    }
-
-    @Override
     public int getMaximumVolumeSizeIOPS() throws InternalException, CloudException {
         return 0;
     }
@@ -88,15 +78,15 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
         return 0;
     }
 
-    static private final Storage<Gigabyte> maxVolSize = new Storage<Gigabyte>(1024, Storage.GIGABYTE);
+    static private final Storage<Gigabyte> maxVolSize = new Storage<>(1024, Storage.GIGABYTE);
 
-    @Nullable
+    @Nonnull
     @Override
     public Storage<Gigabyte> getMaximumVolumeSize() throws InternalException, CloudException {
         return maxVolSize;
     }
 
-    static private final Storage<Gigabyte> minVolSize = new Storage<Gigabyte>(10, Storage.GIGABYTE);
+    static private final Storage<Gigabyte> minVolSize = new Storage<>(10, Storage.GIGABYTE);
 
     @Nonnull
     @Override
@@ -126,6 +116,12 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
     public @Nonnull Requirement getDeviceIdOnAttachRequirement() throws InternalException, CloudException {
         return Requirement.REQUIRED;
     }
+
+    @Override
+    public boolean supportsIOPSVolumes() throws InternalException, CloudException {
+        return true;
+    }
+
 
     @Override
     public boolean isVolumeSizeDeterminedByProduct() throws InternalException, CloudException {
@@ -160,5 +156,15 @@ public class EBSVolumeCapabilities extends AbstractCapabilities<AWSCloud> implem
     @Override
     public Requirement requiresVMOnCreate() throws InternalException, CloudException {
         return Requirement.NONE;
+    }
+
+    @Override
+    public boolean supportsAttach() {
+        return false;
+    }
+
+    @Override
+    public boolean supportsDetach() {
+        return false;
     }
 }

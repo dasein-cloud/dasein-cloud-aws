@@ -19,15 +19,13 @@
 
 package org.dasein.cloud.aws.network;
 
-import org.dasein.cloud.AbstractCapabilities;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
-import org.dasein.cloud.Requirement;
+import org.dasein.cloud.*;
 import org.dasein.cloud.aws.AWSCloud;
-import org.dasein.cloud.network.VPNCapabilities;
-import org.dasein.cloud.network.VPNProtocol;
+import org.dasein.cloud.network.VpnCapabilities;
+import org.dasein.cloud.network.VpnProtocol;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 
 /**
@@ -38,19 +36,66 @@ import java.util.Collections;
  * @version 2014.03 initial version
  * @since 2014.03
  */
-public class VPCGatewayCapabilities extends AbstractCapabilities<AWSCloud> implements VPNCapabilities {
+public class VPCGatewayCapabilities extends AbstractCapabilities<AWSCloud> implements VpnCapabilities {
     public VPCGatewayCapabilities(AWSCloud provider) {
         super(provider);
     }
 
-    @Override
-    public Requirement getVPNDataCenterConstraint() {
-        return Requirement.NONE;
-    }
 
     @Nonnull
     @Override
-    public Iterable<VPNProtocol> listSupportedVPNProtocols() throws CloudException, InternalException {
-        return Collections.singletonList(VPNProtocol.IPSEC1);
+    public Iterable<VpnProtocol> listSupportedVpnProtocols() throws CloudException, InternalException {
+        return Collections.singletonList(VpnProtocol.IPSEC1);
+    }
+
+    @Nullable
+    @Override
+    public VisibleScope getVpnVisibleScope() {
+        return VisibleScope.ACCOUNT_REGION;
+    }
+
+    @Override
+    public Requirement identifyLabelsRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public Requirement identifyVlanIdRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public Requirement identifyDataCenterIdRequirement() throws CloudException, InternalException {
+        return Requirement.NONE;
+    }
+
+    @Override
+    public Requirement identifyGatewayCidrRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public Requirement identifyGatewaySharedSecretRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public Requirement identifyGatewayBgpAsnRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public Requirement identifyGatewayVlanNameRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public Requirement identifyGatewayVpnNameRequirement() throws CloudException, InternalException {
+        return null;
+    }
+
+    @Override
+    public boolean supportsAutoConnect() throws CloudException, InternalException {
+        return false;
     }
 }
