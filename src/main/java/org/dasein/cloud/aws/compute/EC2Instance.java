@@ -1157,6 +1157,11 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     @Override
+    public @Nonnull Iterable<VirtualMachineProduct> listAllProducts() throws InternalException, CloudException{
+        return listProducts(VirtualMachineProductFilterOptions.getInstance(), null);
+    }
+
+    @Override
     public @Nonnull Iterable<VirtualMachineProduct> listProducts(@Nonnull String machineImageId, @Nonnull VirtualMachineProductFilterOptions options) throws InternalException, CloudException {
         MachineImage image = getProvider().getComputeServices().getImageSupport().getImage(machineImageId);
         Iterable<VirtualMachineProduct> allProducts = listProducts(options, image.getArchitecture());
