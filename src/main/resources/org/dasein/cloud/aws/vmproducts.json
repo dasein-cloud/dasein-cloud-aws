@@ -308,7 +308,7 @@
         "rdt": ["ebs", "instance"]
       },
       {
-        "architectures": ["I64"],
+        "architectures": ["I64", "I32"],
         "id": "c3.large",
         "name": "Compute Optimized Large (c3.large)",
         "description": "Compute Optimized Large (c3.large)",
