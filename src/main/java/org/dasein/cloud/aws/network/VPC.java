@@ -589,14 +589,10 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
     private void assignDHCPOptions(VLAN vlan, String domainName, String[] dnsServers, String[] ntpServers) throws CloudException, InternalException {
         boolean differs = false;
 
-        if( vlan.getDomainName() != null ) {
-            if( domainName == null ) {
-                differs = true;
-            } else if( !domainName.equals(vlan.getDomainName()) ) {
+        if( domainName != null ) {
+            if( !domainName.equals(vlan.getDomainName()) ) {
                 differs = true;
             }
-        } else if( domainName != null ) {
-            differs = true;
         }
         if( !differs ) {
             if( vlan.getDnsServers() != null ) {
@@ -843,7 +839,7 @@ public class VPC extends AbstractVLANSupport<AWSCloud> {
                     String domain = options.getDomain();
                     String[] dns = options.getDnsServers();
                     String[] ntp = options.getNtpServers();
-                    if( domain != null || dns != null || ntp != null ) {
+                    if( domain != null || dns.length > 0 || ntp.length > 0 ) {
                         assignDHCPOptions(vlan, options.getDomain(), options.getDnsServers(), options.getNtpServers());
                     }
                     Tag[] tags = new Tag[2];
