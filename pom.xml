@@ -20,7 +20,7 @@
 
     <groupId>org.dasein</groupId>
     <artifactId>dasein-cloud-aws</artifactId>
-    <version>2015.10.4-SNAPSHOT</version>
+    <version>2015.10.4</version>
     <packaging>jar</packaging>
 
     <name>dasein-cloud-aws</name>
@@ -50,7 +50,7 @@
         <connection>scm:git:git://github.com/dasein-cloud/dasein-cloud-aws.git</connection>
         <developerConnection>scm:git:ssh://git@github.com/dasein-cloud/dasein-cloud-aws.git</developerConnection>
         <url>http://github.com/dasein-cloud/dasein-cloud-aws</url>
-      <tag>HEAD</tag>
+      <tag>dasein-cloud-aws-2015.10.4</tag>
   </scm>
 
     <parent>
