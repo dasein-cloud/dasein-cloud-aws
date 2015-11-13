@@ -1,3 +1,8 @@
-# UUID        	Group Name
+# UUID                                  	Group Name
 #
-user:drewlyall	user/Drew Lyall (drewlyall)
+035364ec8af8078756c5883b4bef8741d4cabcca	dasein-external
+06f516494d0fd00f4313154871a8df94e58e755c	dasein-owners
+3b9fb3f558ab701507a2d486082db4a6aba35322	dasein-ci
+4ad5e4d6c2f039b70220352e6db47d55905ca9b8	dasein-developers
+aab53ed6048450120aee8f773b5005426d76a350	dasein-integrators
+user:drewlyall                          	user/Drew Lyall (drewlyall)
