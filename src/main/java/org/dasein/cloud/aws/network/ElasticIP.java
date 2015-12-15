@@ -45,7 +45,7 @@ import java.util.concurrent.*;
 public class ElasticIP extends AbstractIpAddressSupport<AWSCloud> {
     static private final Logger logger = AWSCloud.getLogger(ElasticIP.class);
 
-    static private final ExecutorService threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new ThreadFactory() {
+    static private final ExecutorService threadPool = Executors.newCachedThreadPool(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
             Thread t = new Thread(r, "dasein-ip-pool");
