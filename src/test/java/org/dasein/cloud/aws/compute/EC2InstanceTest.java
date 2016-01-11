@@ -21,18 +21,25 @@
 
 package org.dasein.cloud.aws.compute;
 
+import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.network.ElasticIP;
 import org.dasein.cloud.compute.Architecture;
 import org.dasein.cloud.compute.Platform;
+import org.dasein.cloud.compute.VMFilterOptions;
 import org.dasein.cloud.compute.VirtualMachine;
+import org.dasein.cloud.compute.VirtualMachineLifecycle;
+import org.dasein.cloud.compute.VirtualMachineStatus;
 import org.dasein.cloud.compute.VmState;
+import org.dasein.cloud.compute.VmStatus;
+import org.dasein.cloud.compute.VmStatusFilterOptions;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeState;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.internal.util.collections.Sets;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -41,7 +48,9 @@ import org.w3c.dom.Document;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.core.AllOf.allOf;
@@ -143,12 +152,12 @@ public class EC2InstanceTest extends AwsTestBase {
         String instanceId = "i-2574e22a";
         String targetProductType = "c1.large";
 
-        EC2Method alterVirtualMachineMethodStub = mock(EC2Method.class);
-        when(alterVirtualMachineMethodStub.invoke()).thenReturn(
+        EC2Method alterVirtualMachineMethodMock = mock(EC2Method.class);
+        when(alterVirtualMachineMethodMock.invoke()).thenReturn(
                 resource("org/dasein/cloud/aws/compute/modify_instance_attribute.xml"));
         PowerMockito.whenNew(EC2Method.class).withArguments(eq("ec2"), eq(awsCloudStub),
                 argThat(allOf(hasEntry("InstanceId", instanceId), hasEntry("InstanceType.Value", targetProductType),
-                        hasEntry("Action", "ModifyInstanceAttribute")))).thenReturn(alterVirtualMachineMethodStub);
+                        hasEntry("Action", "ModifyInstanceAttribute")))).thenReturn(alterVirtualMachineMethodMock);
 
         EC2Method getVirtualMachineMethodStub = mock(EC2Method.class);
         when(getVirtualMachineMethodStub.invoke()).thenReturn(
@@ -160,7 +169,7 @@ public class EC2InstanceTest extends AwsTestBase {
 
         ec2Instance.alterVirtualMachineProduct(instanceId, targetProductType);
 
-        verify(alterVirtualMachineMethodStub, times(1)).invoke();
+        verify(alterVirtualMachineMethodMock, times(1)).invoke();
     }
 
     @Test
@@ -177,13 +186,13 @@ public class EC2InstanceTest extends AwsTestBase {
                         hasEntry("GroupId.1", targetFirewall1), hasEntry("Action", "ModifyInstanceAttribute"))))
                 .thenReturn(alterVirtualMachineMethodStub);
 
-        EC2Method getVirtualMachineMethodStub = mock(EC2Method.class);
-        when(getVirtualMachineMethodStub.invoke()).thenReturn(
+        EC2Method describeInstanceMethodStub = mock(EC2Method.class);
+        when(describeInstanceMethodStub.invoke()).thenReturn(
                 resource("org/dasein/cloud/aws/compute/describe_instance.xml"));
         PowerMockito.whenNew(EC2Method.class)
                 .withArguments(eq(awsCloudStub),
                         argThat(allOf(hasEntry("InstanceId.1", instanceId), hasEntry("Action", "DescribeInstances"))))
-                .thenReturn(getVirtualMachineMethodStub);
+                .thenReturn(describeInstanceMethodStub);
 
         ec2Instance.alterVirtualMachineFirewalls(instanceId, new String[] { targetFirewall0, targetFirewall1 });
 
@@ -233,4 +242,113 @@ public class EC2InstanceTest extends AwsTestBase {
         assertEquals(3, firewalls.size());
         assertEquals("sg-1a2b3c4d", firewalls.get(0));
     }
+
+    @Test
+    public void testGetVMStatus() throws Exception {
+        String instanceId1 = "i-2574e22a";
+        String instanceId2 = "i-2a2b3c4d";
+        VmStatus status = VmStatus.IMPAIRED;
+
+        EC2Method describeInstanceStatusMethodStub = mock(EC2Method.class);
+        when(describeInstanceStatusMethodStub.invoke()).thenReturn(
+                resource("org/dasein/cloud/aws/compute/describe_instance_status.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("InstanceId.1", instanceId1), hasEntry("InstanceId.2", instanceId2),
+                        hasEntry("Filter.0.Name", "system-status.status"), hasEntry("Filter.0.Value.0", "impaired"),
+                        hasEntry("Filter.1.Name", "instance-status.status"), hasEntry("Filter.1.Value.0", "impaired"),
+                        hasEntry("Action", "DescribeInstanceStatus")))).thenReturn(describeInstanceStatusMethodStub);
+
+        List<VirtualMachineStatus> vmStatus = (List<VirtualMachineStatus>) ec2Instance.getVMStatus(
+                VmStatusFilterOptions.getInstance().withVmIds(instanceId1, instanceId2)
+                        .withVmStatuses(Sets.newSet(VmStatus.IMPAIRED)));
+
+        assertEquals(1, vmStatus.size());
+        assertEquals(instanceId1, vmStatus.get(0).getProviderVirtualMachineId());
+        assertEquals(status, vmStatus.get(0).getProviderHostStatus());
+        assertEquals(status, vmStatus.get(0).getProviderVmStatus());
+    }
+
+    @Test
+    public void testListVirtualMachineStatus() throws Exception {
+        String instanceId = "i-2574e22a";
+
+        EC2Method describeInstanceMethodStub = mock(EC2Method.class);
+        when(describeInstanceMethodStub.invoke()).thenReturn(
+                resource("org/dasein/cloud/aws/compute/describe_instance.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+                .withArguments(eq(awsCloudStub), argThat(allOf(hasEntry("Action", "DescribeInstances"))))
+                .thenReturn(describeInstanceMethodStub);
+
+        List<ResourceStatus> resourceStatuses = (List<ResourceStatus>) ec2Instance.listVirtualMachineStatus();
+        assertEquals(1, resourceStatuses.size());
+        assertEquals(instanceId, resourceStatuses.get(0).getProviderResourceId());
+        assertEquals(VmState.RUNNING, resourceStatuses.get(0).getResourceStatus());
+    }
+
+    @Test
+    public void testListVirtualMachines() throws Exception {
+        EC2Method listIpMethodStub = mock(EC2Method.class);
+        when(listIpMethodStub.invoke()).thenReturn(resource("org/dasein/cloud/aws/network/describe_addresses.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+                .withArguments(eq(awsCloudStub), argThat(allOf(hasEntry("Action", "DescribeAddresses"))))
+                .thenReturn(listIpMethodStub);
+
+
+        String spotRequestId = "spot-1a2b3c4d";
+        String tagKey = "tk-1a2b3c4d";
+        String tagValue = "tv-1a2b3c4d";
+
+        Map<String, String> tags = new HashMap<>();
+        tags.put(tagKey, tagValue);
+
+
+        EC2Method describeInstanceMethodStub = mock(EC2Method.class);
+        when(describeInstanceMethodStub.invoke())
+                .thenReturn(resource("org/dasein/cloud/aws/compute/describe_instance.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("Filter.0.Name", "tag:" + tagKey), hasEntry("Filter.0.Value.0", tagValue),
+                        hasEntry("Filter.1.Name", "instance-state-name"), hasEntry("Filter.1.Value.0", "running"),
+                        hasEntry("Filter.2.Name", "instance-lifecycle"), hasEntry("Filter.2.Value.0", "spot"),
+                        hasEntry("Filter.3.Name", "spot-instance-request-id"), hasEntry("Filter.3.Value.0", spotRequestId),
+                        hasEntry("Action", "DescribeInstances"))))
+                .thenReturn(describeInstanceMethodStub);
+
+        List<VirtualMachine> virtualMachines = (List<VirtualMachine>) ec2Instance.listVirtualMachines(
+                VMFilterOptions.getInstance().withVmStates(Sets.newSet(VmState.RUNNING))
+                        .withLifecycles(VirtualMachineLifecycle.SPOT).withSpotRequestId(spotRequestId).withTags(tags));
+
+        assertEquals(1, virtualMachines.size());
+    }
+
+    @Test
+    public void testEnableAnalytics() throws Exception {
+        String instanceId = "i-2574e22a";
+
+        EC2Method monitorInstanceMock = mock(EC2Method.class);
+        when(monitorInstanceMock.invoke()).thenReturn(resource("org/dasein/cloud/aws/compute/monitor_instance.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("InstanceId.1", instanceId), hasEntry("Action", "MonitorInstances"))))
+                .thenReturn(monitorInstanceMock);
+
+        ec2Instance.enableAnalytics(instanceId);
+
+        verify(monitorInstanceMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testDisableAnalytics() throws Exception {
+        String instanceId = "i-2574e22a";
+
+        EC2Method unmonitorInstanceMock = mock(EC2Method.class);
+        when(unmonitorInstanceMock.invoke()).thenReturn(resource("org/dasein/cloud/aws/compute/unmonitor_instance.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("InstanceId.1", instanceId), hasEntry("Action", "UnmonitorInstances"))))
+                .thenReturn(unmonitorInstanceMock);
+
+        ec2Instance.disableAnalytics(instanceId);
+
+        verify(unmonitorInstanceMock, times(1)).invoke();
+    }
+
+    //getVMStatistics not tested, as no sample response data
 }

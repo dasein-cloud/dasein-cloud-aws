@@ -1,0 +1,62 @@
+<!--
+  ~  *
+  ~  Copyright (C) 2009-2015 Dell, Inc.
+  ~  See annotations for authorship information
+  ~
+  ~  ====================================================================
+  ~  Licensed under the Apache License, Version 2.0 (the "License");
+  ~  you may not use this file except in compliance with the License.
+  ~  You may obtain a copy of the License at
+  ~
+  ~  http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~  Unless required by applicable law or agreed to in writing, software
+  ~  distributed under the License is distributed on an "AS IS" BASIS,
+  ~  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~  See the License for the specific language governing permissions and
+  ~  limitations under the License.
+  ~  ====================================================================
+  ~
+  -->
+
+<DescribeInstanceStatusResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
+    <requestId>3be1508e-c444-4fef-89cc-0b1223c4f02fEXAMPLE</requestId>
+    <instanceStatusSet>
+        <item>
+            <instanceId>i-2574e22a</instanceId>
+            <availabilityZone>us-west-2a</availabilityZone>
+            <instanceState>
+                <code>16</code>
+                <name>running</name>
+            </instanceState>
+            <systemStatus>
+                <status>impaired</status>
+                <details>
+                    <item>
+                        <name>reachability</name>
+                        <status>failed</status>
+                        <impairedSince>YYYY-MM-DDTHH:MM:SS.000Z</impairedSince>
+                    </item>
+                </details>
+            </systemStatus>
+            <instanceStatus>
+                <status>impaired</status>
+                <details>
+                    <item>
+                        <name>reachability</name>
+                        <status>failed</status>
+                        <impairedSince>YYYY-MM-DDTHH:MM:SS.000Z</impairedSince>
+                    </item>
+                </details>
+            </instanceStatus>
+            <eventsSet>
+                <item>
+                    <code>instance-retirement</code>
+                    <description>The instance is running on degraded hardware</description>
+                    <notBefore>YYYY-MM-DDTHH:MM:SS+0000</notBefore>
+                    <notAfter>YYYY-MM-DDTHH:MM:SS+0000</notAfter>
+                </item>
+            </eventsSet>
+        </item>
+    </instanceStatusSet>
+</DescribeInstanceStatusResponse>
