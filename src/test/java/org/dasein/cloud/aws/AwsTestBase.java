@@ -36,7 +36,7 @@ import org.powermock.api.mockito.PowerMockito;
 public class AwsTestBase {
 
     protected final String ENDPOINT = "https://ec2.amazonaws.com";
-    protected final String ACCOUNT_NO = "TESTACCOUNTNO";
+    protected final String ACCOUNT_NO = "123456789012";
     protected final String REGION = "us-west";
 
     protected AWSCloud awsCloudStub;
