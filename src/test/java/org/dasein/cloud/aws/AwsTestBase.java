@@ -35,7 +35,7 @@ import org.powermock.api.mockito.PowerMockito;
  */
 public class AwsTestBase {
 
-    protected final String ENDPOINT = "https://ec2.amazonaws.com";
+    protected final String ENDPOINT = "ec2.amazonaws.com";
     protected final String ACCOUNT_NO = "123456789012";
     protected final String REGION = "us-west";
 
@@ -47,17 +47,16 @@ public class AwsTestBase {
     public void setUp() {
         awsCloudStub = PowerMockito.spy(new AWSCloud());
         providerContextStub = Mockito.mock(ProviderContext.class);
-        cloudMock = Mockito.mock(Cloud.class);
+        //cloudMock = Mockito.mock(Cloud.class);
+        cloudMock = Cloud.register("AWS", "AWS", ENDPOINT, AWSCloud.class);
+        PowerMockito.doReturn(cloudMock).when(providerContextStub).getCloud();
 
-        //PowerMockito.when(awsCloudStub.getContext()).thenReturn(null);
-//        PowerMockito.doReturn(ENDPOINT).when(awsCloudStub).getEc2Url();
         PowerMockito.doReturn(providerContextStub).when(awsCloudStub).getContext();
 
         Mockito.doReturn(cloudMock).when(providerContextStub).getCloud();
         Mockito.doReturn(ACCOUNT_NO).when(providerContextStub).getAccountNumber();
         Mockito.doReturn(REGION).when(providerContextStub).getRegionId();
-        Mockito.doReturn(ENDPOINT).when(providerContextStub).getEndpoint();
-
-        Mockito.doReturn(ENDPOINT).when(cloudMock).getEndpoint();
+        //Mockito.doReturn(ENDPOINT).when(providerContextStub).getEndpoint();
+        //Mockito.doReturn(ENDPOINT).when(cloudMock).getEndpoint();
     }
 }

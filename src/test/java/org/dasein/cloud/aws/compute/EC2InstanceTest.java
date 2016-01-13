@@ -21,6 +21,7 @@
 
 package org.dasein.cloud.aws.compute;
 
+import org.dasein.cloud.AbstractProviderService;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
@@ -35,12 +36,15 @@ import org.dasein.cloud.compute.SpotVirtualMachineRequestType;
 import org.dasein.cloud.compute.VMFilterOptions;
 import org.dasein.cloud.compute.VirtualMachine;
 import org.dasein.cloud.compute.VirtualMachineLifecycle;
+import org.dasein.cloud.compute.VirtualMachineProduct;
+import org.dasein.cloud.compute.VirtualMachineProductFilterOptions;
 import org.dasein.cloud.compute.VirtualMachineStatus;
 import org.dasein.cloud.compute.VmState;
 import org.dasein.cloud.compute.VmStatus;
 import org.dasein.cloud.compute.VmStatusFilterOptions;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeState;
+import org.json.JSONObject;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -57,16 +61,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.core.AllOf.allOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.powermock.api.support.membermodification.MemberMatcher.method;
 
 /**
  * Created by Jeffrey Yan on 11/19/2015.
@@ -74,8 +82,9 @@ import static org.mockito.Mockito.when;
  * @author Jeffrey Yan
  * @since 2016.02.1
  */
-@RunWith(PowerMockRunner.class) @PrepareForTest({ AWSCloud.class, EC2Instance.class,
-        ElasticIP.class }) public class EC2InstanceTest extends AwsTestBase {
+@RunWith(PowerMockRunner.class)
+@PrepareForTest({ AWSCloud.class, EC2Instance.class, ElasticIP.class })
+public class EC2InstanceTest extends AwsTestBase {
 
     private EC2Instance ec2Instance;
 
@@ -583,5 +592,30 @@ import static org.mockito.Mockito.when;
         ec2Instance.terminate(instanceId);
 
         verify(startInstanceMock, times(1)).invoke();
+    }
+
+    /**
+     * Tests that the list of *all* products is not empty (FB8437).
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testListAllProducts() throws Exception {
+        EC2Instance ec2InstanceMock = PowerMockito.mock(EC2Instance.class);
+
+        when(ec2InstanceMock.listAllProducts()).thenCallRealMethod();
+        when(ec2InstanceMock.listProducts(any(VirtualMachineProductFilterOptions.class), any(Architecture.class)))
+                .thenCallRealMethod();
+        when(ec2InstanceMock.toProduct(any(JSONObject.class))).thenCallRealMethod();
+        PowerMockito.when(ec2InstanceMock, method(AbstractProviderService.class, "getProvider")).withNoArguments()
+                .thenReturn(awsCloudStub);
+        PowerMockito.when(ec2InstanceMock, method(EC2Instance.class, "getContext")).withNoArguments()
+                .thenReturn(providerContextStub);
+        Iterable<VirtualMachineProduct> products = ec2InstanceMock.listAllProducts();
+        int count = 0;
+        for (VirtualMachineProduct p : products) {
+            count++;
+        }
+        assertThat("Product count should be greater than zero", count, greaterThan(0));
     }
 }
