@@ -117,6 +117,19 @@
         "rdt": ["ebs"]
       },
       {
+        "excludesRegions": ["eu-central-1", "ap-southeast-2"],
+        "architectures": ["I32", "I64"],
+        "id": "t2.nano",
+        "name": "Burstable Instance (t2.nano)",
+        "description": "Variable ECUs, 1 vCPUs, 2.4 GHz, Intel Xeon Family, 0.5 GiB memory, EBS only",
+        "cpuCount": 1,
+        "rootVolumeSizeInGb": 1,
+        "ramSizeInMb": 537,
+        "generation": "current",
+        "vt": ["hvm"],
+        "rdt": ["ebs"]
+      },
+      {
         "architectures": ["I32", "I64"],
         "id": "t2.micro",
         "name": "Burstable Instance (t2.micro)",
