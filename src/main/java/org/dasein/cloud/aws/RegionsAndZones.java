@@ -24,6 +24,7 @@ import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.dasein.cloud.aws.compute.EC2Exception;
+import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.dc.*;
 import org.dasein.cloud.util.APITrace;
@@ -215,7 +216,7 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
 	}
 
 	@Override
-	public Collection<DataCenter> listDataCenters(String regionId) throws InternalException, CloudException {
+	public Collection<DataCenter>  listDataCenters(String regionId) throws InternalException, CloudException {
         APITrace.begin(getProvider(), "DC.listDataCenters");
         try {
             ProviderContext ctx = getProvider().getContext();
@@ -241,7 +242,8 @@ public class RegionsAndZones extends AbstractDataCenterServices<AWSCloud> {
                 throw new CloudException("No such region: " + regionId);
             }
             Map<String,String> parameters = getProvider().getStandardParameters(getProvider().getContext(), DESCRIBE_AVAILABILITY_ZONES);
-            EC2Method method = new EC2Method(getProvider(), parameters);
+            EC2Method method = new EC2Method("ec2", regionId, getProvider(), parameters);
+            //EC2Method method = new EC2Method(getProvider(), parameters);
             NodeList blocks;
             Document doc;
 
