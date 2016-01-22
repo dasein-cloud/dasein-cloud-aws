@@ -298,9 +298,11 @@
                             <value>${test.shareAccount}</value>
                         </property>
                     </systemProperties>
-                    <excludes>
-                        <exclude>**/TestSuite.class</exclude>
-                    </excludes>
+                    <includes>
+                        <include>**/TestSuite.class</include>
+                    </includes>
+                    <forkCount>0</forkCount>
+                    <reuseForks>false</reuseForks>
                 </configuration>
                 <executions>
                     <execution>
