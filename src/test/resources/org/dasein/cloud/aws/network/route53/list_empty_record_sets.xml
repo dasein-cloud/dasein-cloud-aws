@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ListResourceRecordSetsResponse xmlns="https://route53.amazonaws.com/doc/2013-04-01/">
+   <ResourceRecordSets>
+   </ResourceRecordSets>
+   <IsTruncated>false</IsTruncated>
+   <MaxItems>0</MaxItems>
+</ListResourceRecordSetsResponse>

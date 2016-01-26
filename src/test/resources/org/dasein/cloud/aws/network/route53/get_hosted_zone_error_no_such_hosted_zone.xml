@@ -1,0 +1,8 @@
+<ErrorResponse xmlns="https://route53.amazonaws.com/doc/2013-04-01/">
+   <Error>
+      <Type>Sender</Type>
+      <Code>NoSuchHostedZone</Code>
+      <Message>Failed to find such hosted zone.</Message>
+   </Error>
+   <RequestId>410c2a4b-e435-49c9-8382-3770d80d7d4c</RequestId>
+</ErrorResponse>

@@ -94,11 +94,6 @@ public class EC2InstanceTest extends AwsTestBase {
         ec2Instance = new EC2Instance(awsCloudStub);
     }
 
-    private Document resource(String resourceName) throws Exception {
-        DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        return documentBuilder.parse(getClass().getClassLoader().getResourceAsStream(resourceName));
-    }
-
     @Test
     public void testGetPassword() throws Exception {
         String instanceId = "i-2574e22a";

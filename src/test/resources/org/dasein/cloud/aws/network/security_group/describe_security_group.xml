@@ -1,0 +1,26 @@
+<DescribeSecurityGroupsResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
+   <requestId>59dbff89-35bd-4eac-99ed-be587EXAMPLE</requestId> 
+   <securityGroupInfo>
+      <item>
+         <ownerId>123456789012</ownerId>
+         <groupId>sg-1a2b3c4d</groupId>
+         <groupName>WebServers</groupName>
+         <groupDescription>Web Servers</groupDescription>
+         <vpcId/>
+         <ipPermissions>
+            <item>
+               <ipProtocol>tcp</ipProtocol>
+               <fromPort>80</fromPort>
+               <toPort>80</toPort>
+               <groups/>
+               <ipRanges>
+                  <item>
+                     <cidrIp>0.0.0.0/0</cidrIp>
+                  </item>
+               </ipRanges>
+            </item>
+         </ipPermissions>
+         <ipPermissionsEgress/>
+      </item>
+   </securityGroupInfo>
+</DescribeSecurityGroupsResponse>
