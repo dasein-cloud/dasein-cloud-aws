@@ -33,14 +33,6 @@
             <privateIpAddress>10.0.0.228</privateIpAddress>
         </item>
         <item>
-            <publicIp>46.51.219.64</publicIp>
-            <instanceId>i-64600031</instanceId>
-            <associationId>eipassoc-f0229810</associationId>
-            <networkInterfaceId>eni-ef229810</networkInterfaceId>
-            <networkInterfaceOwnerId>053230519467</networkInterfaceOwnerId>
-            <privateIpAddress>10.0.0.229</privateIpAddress>
-        </item>
-        <item>
             <publicIp>198.51.100.2</publicIp>
             <domain>standard</domain>
             <instanceId/>

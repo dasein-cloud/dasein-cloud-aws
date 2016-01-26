@@ -21,11 +21,15 @@
 
 package org.dasein.cloud.aws;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.dasein.cloud.Cloud;
 import org.dasein.cloud.ProviderContext;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
+import org.w3c.dom.Document;
 
 /**
  * Created by Jeffrey Yan on 1/7/2016.
@@ -58,5 +62,11 @@ public class AwsTestBase {
         Mockito.doReturn(REGION).when(providerContextStub).getRegionId();
         //Mockito.doReturn(ENDPOINT).when(providerContextStub).getEndpoint();
         //Mockito.doReturn(ENDPOINT).when(cloudMock).getEndpoint();
+    }
+    
+    protected Document resource(String resourceName) throws Exception {
+        DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        return documentBuilder
+                .parse(getClass().getClassLoader().getResourceAsStream(resourceName));
     }
 }
