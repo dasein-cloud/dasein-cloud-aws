@@ -110,7 +110,7 @@ public class SecurityGroupCapabilities extends AbstractCapabilities<AWSCloud> im
 
     @Override
     public @Nonnull Iterable<Protocol> listSupportedProtocols( boolean inVlan ) throws InternalException, CloudException {
-        List<Protocol> protocols = Arrays.asList(Protocol.TCP, Protocol.UDP, Protocol.ICMP);
+        List<Protocol> protocols = new ArrayList<>(Arrays.asList(Protocol.TCP, Protocol.UDP, Protocol.ICMP));
         // TODO: The ALL in VLAN limitation only seems valid for ingress; egress doesn't specify this limitation.
         if( inVlan ) {
             protocols.add(Protocol.ANY);
