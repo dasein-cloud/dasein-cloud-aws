@@ -26,6 +26,10 @@ import org.dasein.cloud.ProviderContext;
 import org.junit.Before;
 import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
+import org.w3c.dom.Document;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
 
 /**
  * Created by Jeffrey Yan on 1/7/2016.
@@ -37,7 +41,7 @@ public class AwsTestBase {
 
     protected final String ENDPOINT = "ec2.amazonaws.com";
     protected final String ACCOUNT_NO = "123456789012";
-    protected final String REGION = "us-west";
+    protected final String REGION = "eu-west-1";
 
     protected AWSCloud awsCloudStub;
     protected ProviderContext providerContextStub;
@@ -59,4 +63,11 @@ public class AwsTestBase {
         //Mockito.doReturn(ENDPOINT).when(providerContextStub).getEndpoint();
         //Mockito.doReturn(ENDPOINT).when(cloudMock).getEndpoint();
     }
+
+
+    protected Document resource(String resourceName) throws Exception {
+        DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+        return documentBuilder.parse(getClass().getClassLoader().getResourceAsStream(resourceName));
+    }
+
 }
