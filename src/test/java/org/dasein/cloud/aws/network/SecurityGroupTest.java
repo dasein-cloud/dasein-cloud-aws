@@ -23,7 +23,6 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.compute.EC2ComputeServices;
-import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.network.Direction;
@@ -203,10 +202,9 @@ public class SecurityGroupTest extends AwsTestBase {
 	public void authorizeIngressRuleShouldPostWithCorrectRequest() throws Exception {
 		
 		String securityGroupId = "sg-1a2b3c4d";
-		
-		FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
-				Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR("192.168.110.0/100"), Protocol.TCP, null, 
-				8080, 8080, 100);
+		String cidr = "192.168.110.0/100";
+		int startPort = 8080;
+		int endPort = 8080;
 		
 		EC2Method ec2MethodStub = mock(EC2Method.class);
         when(ec2MethodStub.invoke())
@@ -221,16 +219,17 @@ public class SecurityGroupTest extends AwsTestBase {
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("GroupId", securityGroupId),
 	        		hasEntry("IpPermissions.1.IpProtocol", Protocol.TCP.name().toLowerCase()),
-	        		hasEntry("IpPermissions.1.FromPort", "8080"),
-	        		hasEntry("IpPermissions.1.ToPort", "8080"),
-	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", "192.168.110.0/100"),
+	        		hasEntry("IpPermissions.1.FromPort", String.valueOf(startPort)),
+	        		hasEntry("IpPermissions.1.ToPort", String.valueOf(endPort)),
+	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", cidr),
 	        		hasEntry("Action", "AuthorizeSecurityGroupIngress"))))
 	        .thenReturn(ec2MethodStub);
-		
+        
         assertEquals(
-        		FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR("192.168.110.0/100"), Direction.INGRESS, 
-        				Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), 8080, 8080).getProviderRuleId(),
-        		securityGroup.authorize(securityGroupId, options));
+                FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), Direction.INGRESS, 
+                		Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort).getProviderRuleId(),
+                securityGroup.authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(cidr), 
+                		Protocol.TCP, null, startPort, endPort, 100));
 	}
 	
 	@Test
