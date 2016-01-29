@@ -21,26 +21,17 @@
 
 package org.dasein.cloud.aws;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-
 import org.dasein.cloud.Cloud;
-import org.dasein.cloud.CloudException;
-import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.junit.Before;
-import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
 import org.w3c.dom.Document;
-<<<<<<< HEAD
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-=======
->>>>>>> dasein-cloud/develop
 
 /**
  * Created by Jeffrey Yan on 1/7/2016.
@@ -52,9 +43,8 @@ public class AwsTestBase {
 
     protected final String ENDPOINT = "ec2.amazonaws.com";
     protected final String ACCOUNT_NO = "123456789012";
-    protected final String REGION = "eu-west-1";
-    protected final String DATA_CENTER = "eu-west-1-dc";
-
+    protected final String REGION = "us-east-1";
+    protected final String DATA_CENTER = "us-east-1-dc";
 
     protected AWSCloud awsCloudStub;
     protected ProviderContext providerContextStub;
@@ -76,7 +66,6 @@ public class AwsTestBase {
         //Mockito.doReturn(ENDPOINT).when(providerContextStub).getEndpoint();
         //Mockito.doReturn(ENDPOINT).when(cloudMock).getEndpoint();
     }
-<<<<<<< HEAD
 
 
     protected Document resource(String resourceName) throws Exception {
@@ -84,12 +73,4 @@ public class AwsTestBase {
         return documentBuilder.parse(getClass().getClassLoader().getResourceAsStream(resourceName));
     }
 
-=======
-    
-    protected Document resource(String resourceName) throws Exception {
-        DocumentBuilder documentBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        return documentBuilder
-                .parse(getClass().getClassLoader().getResourceAsStream(resourceName));
-    }
->>>>>>> dasein-cloud/develop
 }

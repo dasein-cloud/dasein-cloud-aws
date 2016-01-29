@@ -37,7 +37,7 @@ public class ElasticIPTest extends AwsTestBase {
 	private ElasticIP elasticIP;
 	
 	@Before
-	public void setUp() {
+	public void setUp() throws Exception {
 		super.setUp();
 		elasticIP = new ElasticIP(awsCloudStub);
 	}

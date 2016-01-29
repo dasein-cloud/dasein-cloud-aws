@@ -33,7 +33,7 @@ public class Route53Test extends AwsTestBase {
 	private Route53 route53;
 	
 	@Before
-	public void setUp() {
+	public void setUp() throws Exception {
 		super.setUp();
 		try {
 			PowerMockito.doReturn("AIDIODR4TAW7CSEXAMPLE".getBytes()).when(providerContextStub).getAccessPublic();

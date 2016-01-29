@@ -120,7 +120,7 @@ public class EBSVolumeTest extends AwsTestBase {
         assertEquals(80.0, volume.getSize().getQuantity());
         assertTrue(volume.getSize().getUnitOfMeasure() instanceof Gigabyte);
         assertNull(volume.getProviderSnapshotId());
-        assertEquals("eu-west-1", volume.getProviderRegionId());
+        assertEquals("us-east-1", volume.getProviderRegionId());
         assertEquals(1452148872485l, volume.getCreationTimestamp());
         assertEquals(VolumeState.AVAILABLE, volume.getCurrentState());
 
