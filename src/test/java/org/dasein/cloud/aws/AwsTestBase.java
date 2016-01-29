@@ -22,6 +22,8 @@
 package org.dasein.cloud.aws;
 
 import org.dasein.cloud.Cloud;
+import org.dasein.cloud.CloudException;
+import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ProviderContext;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -30,6 +32,9 @@ import org.w3c.dom.Document;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 /**
  * Created by Jeffrey Yan on 1/7/2016.
@@ -50,18 +55,18 @@ public class AwsTestBase {
     protected Cloud cloudMock;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         awsCloudStub = PowerMockito.spy(new AWSCloud());
-        providerContextStub = Mockito.mock(ProviderContext.class);
+        providerContextStub = mock(ProviderContext.class);
         //cloudMock = Mockito.mock(Cloud.class);
         cloudMock = Cloud.register("AWS", "AWS", ENDPOINT, AWSCloud.class);
         PowerMockito.doReturn(cloudMock).when(providerContextStub).getCloud();
 
         PowerMockito.doReturn(providerContextStub).when(awsCloudStub).getContext();
 
-        Mockito.doReturn(cloudMock).when(providerContextStub).getCloud();
-        Mockito.doReturn(ACCOUNT_NO).when(providerContextStub).getAccountNumber();
-        Mockito.doReturn(REGION).when(providerContextStub).getRegionId();
+        doReturn(cloudMock).when(providerContextStub).getCloud();
+        doReturn(ACCOUNT_NO).when(providerContextStub).getAccountNumber();
+        doReturn(REGION).when(providerContextStub).getRegionId();
         //Mockito.doReturn(ENDPOINT).when(providerContextStub).getEndpoint();
         //Mockito.doReturn(ENDPOINT).when(cloudMock).getEndpoint();
     }

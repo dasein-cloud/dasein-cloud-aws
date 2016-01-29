@@ -26,6 +26,7 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
+import org.dasein.cloud.aws.RegionsAndZones;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeCreateOptions;
 import org.dasein.cloud.compute.VolumeFilterOptions;
@@ -33,19 +34,18 @@ import org.dasein.cloud.compute.VolumeFormat;
 import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeType;
-import org.dasein.cloud.dc.DataCenterServices;
+import org.dasein.cloud.dc.DataCenter;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
-import org.dasein.util.uom.storage.StorageUnit;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 import org.w3c.dom.Document;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -53,11 +53,11 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.core.AllOf.allOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,10 +76,13 @@ public class EBSVolumeTest extends AwsTestBase {
     private EBSVolume ebsVolume;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         super.setUp();
-        Mockito.mock(DataCenterServices.class);
-        PowerMockito.doReturn(cloudMock).when(awsCloudStub).getDataCenterServices();
+        RegionsAndZones dataCenterServicesStub = mock(RegionsAndZones.class);
+        DataCenter dataCenter = new DataCenter(DATA_CENTER, DATA_CENTER, REGION, true, true);
+        doReturn(Arrays.asList(dataCenter)).when(dataCenterServicesStub).listDataCenters(REGION);
+
+        PowerMockito.doReturn(dataCenterServicesStub).when(awsCloudStub).getDataCenterServices();
 
 
         ebsVolume = new EBSVolume(awsCloudStub);
@@ -271,6 +274,19 @@ public class EBSVolumeTest extends AwsTestBase {
 
     @Test
     public void testCreateVolumeWithoutDataCenter() throws Exception {
+        int size = 50;
 
+        EC2Method createVolumeMock = mock(EC2Method.class);
+        when(createVolumeMock.invoke()).thenReturn(resource("create_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("Size", Integer.toString(size)), hasEntry("AvailabilityZone", DATA_CENTER),
+                        hasEntry("Action", "CreateVolume")))).thenReturn(createVolumeMock);
+
+        String returnedVolumeId = ebsVolume.createVolume(
+                VolumeCreateOptions.getInstance(new Storage<Gigabyte>(size, Storage.GIGABYTE), null, null));
+
+        verify(createVolumeMock, times(1)).invoke();
+
+        assertEquals("vol-1a2b3c4d", returnedVolumeId);
     }
 }
