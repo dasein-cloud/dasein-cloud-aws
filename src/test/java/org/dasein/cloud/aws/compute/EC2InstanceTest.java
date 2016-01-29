@@ -89,7 +89,7 @@ public class EC2InstanceTest extends AwsTestBase {
     private EC2Instance ec2Instance;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         super.setUp();
         ec2Instance = new EC2Instance(awsCloudStub);
     }

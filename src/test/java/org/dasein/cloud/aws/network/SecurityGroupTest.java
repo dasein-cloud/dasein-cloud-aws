@@ -50,7 +50,7 @@ public class SecurityGroupTest extends AwsTestBase {
 	private SecurityGroup securityGroup;
 	
 	@Before
-	public void setUp() {
+	public void setUp() throws Exception {
 		super.setUp();
 		securityGroup = new SecurityGroup(awsCloudStub);
 	}
