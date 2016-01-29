@@ -1,0 +1,84 @@
+[
+  {
+    "cloud": "AWS",
+    "provider": "AWS",
+    "created": 1429015313000,
+    "products": [
+      {
+        "id": "standard",
+        "name": "Standard",
+        "description": "Standard EBS with no IOPS guarantees",
+        "type": "hdd",
+        "minSize": 1,
+        "maxSize": 1024,
+        "minIops": 0,
+        "maxIops": 0,
+        "iopsToGb": 0
+      },
+      {
+        "id": "io1",
+        "name": "IOPS EBS",
+        "description": "EBS Volume with IOPS guarantees",
+        "type": "ssd",
+        "minSize": 4,
+        "maxSize": 16384,
+        "minIops": 100,
+        "maxIops": 20000,
+        "iopsToGb": 30
+      },
+      {
+        "id": "gp2",
+        "name": "SSD EBS",
+        "description": "SSD-based Persistent Volume",
+        "type": "ssd",
+        "minSize": 1,
+        "maxSize": 16384,
+        "minIops": 0,
+        "maxIops": 0,
+        "iopsToGb": 3
+      }
+    ],
+    "regions": [
+      {
+        "name": "us-east-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.10,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.125,
+            "iops": 0.065
+          },
+          {
+            "id": "standard",
+            "monthly": 0.05,
+            "iops": 0.05
+          }
+        ]
+      },
+      {
+        "name": "eu-west-1",
+        "prices": [
+          {
+            "id": "gp2",
+            "monthly": 0.12,
+            "iops": 0.0
+          },
+          {
+            "id": "io1",
+            "monthly": 0.138,
+            "iops": 0.072
+          },
+          {
+            "id": "standard",
+            "monthly": 0.08,
+            "iops": 0.08
+          }
+        ]
+      }
+    ]
+  }
+]

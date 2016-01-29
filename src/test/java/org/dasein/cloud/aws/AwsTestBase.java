@@ -42,6 +42,8 @@ public class AwsTestBase {
     protected final String ENDPOINT = "ec2.amazonaws.com";
     protected final String ACCOUNT_NO = "123456789012";
     protected final String REGION = "eu-west-1";
+    protected final String DATA_CENTER = "eu-west-1-dc";
+
 
     protected AWSCloud awsCloudStub;
     protected ProviderContext providerContextStub;

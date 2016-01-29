@@ -27,15 +27,20 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.compute.Volume;
+import org.dasein.cloud.compute.VolumeCreateOptions;
 import org.dasein.cloud.compute.VolumeFilterOptions;
 import org.dasein.cloud.compute.VolumeFormat;
 import org.dasein.cloud.compute.VolumeProduct;
 import org.dasein.cloud.compute.VolumeState;
 import org.dasein.cloud.compute.VolumeType;
+import org.dasein.cloud.dc.DataCenterServices;
 import org.dasein.util.uom.storage.Gigabyte;
+import org.dasein.util.uom.storage.Storage;
+import org.dasein.util.uom.storage.StorageUnit;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
@@ -54,6 +59,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -71,6 +78,10 @@ public class EBSVolumeTest extends AwsTestBase {
     @Before
     public void setUp() {
         super.setUp();
+        Mockito.mock(DataCenterServices.class);
+        PowerMockito.doReturn(cloudMock).when(awsCloudStub).getDataCenterServices();
+
+
         ebsVolume = new EBSVolume(awsCloudStub);
     }
 
@@ -154,5 +165,112 @@ public class EBSVolumeTest extends AwsTestBase {
         assertEquals(1, resourceStatuses.size());
         assertEquals("vol-1a2b3c4d", resourceStatuses.get(0).getProviderResourceId());
         assertEquals(VolumeState.AVAILABLE, resourceStatuses.get(0).getResourceStatus());
+    }
+
+    @Test
+    public void testCreateVolume() throws Exception {
+        int size = 50;
+
+        EC2Method createVolumeMock = mock(EC2Method.class);
+        when(createVolumeMock.invoke()).thenReturn(resource("create_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("Size", Integer.toString(size)), hasEntry("AvailabilityZone", DATA_CENTER),
+                        hasEntry("Action", "CreateVolume")))).thenReturn(createVolumeMock);
+
+        String returnedVolumeId = ebsVolume.createVolume(
+                VolumeCreateOptions.getInstance(new Storage<Gigabyte>(size, Storage.GIGABYTE), null, null)
+                        .inDataCenter(DATA_CENTER));
+
+        verify(createVolumeMock, times(1)).invoke();
+
+        assertEquals("vol-1a2b3c4d", returnedVolumeId);
+    }
+
+    @Test
+    public void testCreateVolumeWithTags() throws Exception {
+        String volumeId = "vol-1a2b3c4d";
+        int size = 50;
+        String name = "v_name";
+        String description = "v_description";
+
+        EC2Method createVolumeMock = mock(EC2Method.class);
+        when(createVolumeMock.invoke()).thenReturn(resource("create_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("Size", Integer.toString(size)), hasEntry("AvailabilityZone", DATA_CENTER),
+                        hasEntry("Action", "CreateVolume")))).thenReturn(createVolumeMock);
+
+        EC2Method createTagMock = mock(EC2Method.class);
+        when(createTagMock.invoke()).thenReturn(resource("create_tags.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq("ec2"), eq(awsCloudStub),
+                argThat(allOf(hasEntry("Tag.1.Key", "Name"), hasEntry("Tag.1.Value", name),
+                        hasEntry("Tag.2.Key", "Description"), hasEntry("Tag.2.Value", description),
+                        hasEntry("ResourceId.1", volumeId), hasEntry("Action", "CreateTags"))))
+                .thenReturn(createTagMock);
+
+
+        String returnedVolumeId = ebsVolume.createVolume(
+                VolumeCreateOptions.getInstance(new Storage<Gigabyte>(size, Storage.GIGABYTE), name, description)
+                        .inDataCenter(DATA_CENTER));
+
+        verify(createVolumeMock, times(1)).invoke();
+        verify(createTagMock, times(1)).invoke();
+
+        assertEquals("vol-1a2b3c4d", returnedVolumeId);
+    }
+
+    @Test
+    public void testCreateVolumeWithSnapshotId() throws Exception {
+        String volumeId = "vol-1a2b3c4d";
+        int size = 50;
+        String snapshotId = "snapshot-1a2b3c4d";
+
+        EC2Method createVolumeMock = mock(EC2Method.class);
+        when(createVolumeMock.invoke()).thenReturn(resource("create_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("Size", Integer.toString(size)), hasEntry("AvailabilityZone", DATA_CENTER),
+                        hasEntry("Action", "CreateVolume"), hasEntry("SnapshotId", snapshotId))))
+                .thenReturn(createVolumeMock);
+
+        VolumeCreateOptions createOptions = VolumeCreateOptions
+                .getInstance(new Storage<Gigabyte>(size, Storage.GIGABYTE), null, null)
+                .inDataCenter(DATA_CENTER);
+        createOptions.setSnapshotId(snapshotId);
+
+        String returnedVolumeId = ebsVolume.createVolume(createOptions);
+
+        verify(createVolumeMock, times(1)).invoke();
+
+        assertEquals("vol-1a2b3c4d", returnedVolumeId);
+    }
+
+    @Test
+    public void testCreateVolumeWithProductId() throws Exception {
+        int size = 50;
+        String productId = "io1";
+        int iops = 1000;
+
+        EC2Method createVolumeMock = mock(EC2Method.class);
+        when(createVolumeMock.invoke()).thenReturn(resource("create_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("Size", Integer.toString(size)), hasEntry("AvailabilityZone", DATA_CENTER),
+                        hasEntry("VolumeType", productId), hasEntry("Iops", Integer.toString(iops)),
+                        hasEntry("Action", "CreateVolume")))).thenReturn(createVolumeMock);
+
+        VolumeCreateOptions createOptions = VolumeCreateOptions
+                .getInstance(new Storage<Gigabyte>(size, Storage.GIGABYTE), null, null)
+                .inDataCenter(DATA_CENTER);
+        createOptions.setVolumeProductId(productId);
+        createOptions.setIops(iops);
+
+        String returnedVolumeId = ebsVolume.createVolume(createOptions);
+
+        verify(createVolumeMock, times(1)).invoke();
+
+        assertEquals("vol-1a2b3c4d", returnedVolumeId);
+    }
+
+    @Test
+    public void testCreateVolumeWithoutDataCenter() throws Exception {
+
     }
 }
