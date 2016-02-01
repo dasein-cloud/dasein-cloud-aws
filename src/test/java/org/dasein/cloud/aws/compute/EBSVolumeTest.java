@@ -21,12 +21,14 @@
 
 package org.dasein.cloud.aws.compute;
 
+import org.dasein.cloud.Capabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.RegionsAndZones;
+import org.dasein.cloud.compute.Platform;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeCreateOptions;
 import org.dasein.cloud.compute.VolumeFilterOptions;
@@ -47,6 +49,7 @@ import org.w3c.dom.Document;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -74,6 +77,7 @@ import static org.mockito.Mockito.when;
 public class EBSVolumeTest extends AwsTestBase {
 
     private EBSVolume ebsVolume;
+    private EBSVolumeCapabilities ebsVolumeCapabilities;
 
     @Before
     public void setUp() throws Exception {
@@ -86,6 +90,7 @@ public class EBSVolumeTest extends AwsTestBase {
 
 
         ebsVolume = new EBSVolume(awsCloudStub);
+        ebsVolumeCapabilities = new EBSVolumeCapabilities(awsCloudStub);
     }
 
     protected Document resource(String resourceName) throws Exception {
@@ -223,7 +228,6 @@ public class EBSVolumeTest extends AwsTestBase {
 
     @Test
     public void testCreateVolumeWithSnapshotId() throws Exception {
-        String volumeId = "vol-1a2b3c4d";
         int size = 50;
         String snapshotId = "snapshot-1a2b3c4d";
 
@@ -288,5 +292,115 @@ public class EBSVolumeTest extends AwsTestBase {
         verify(createVolumeMock, times(1)).invoke();
 
         assertEquals("vol-1a2b3c4d", returnedVolumeId);
+    }
+
+    @Test
+    public void testAttach() throws Exception {
+        String volumeId = "vol-1a2b3c4d";
+        String instanceId = "i-1a2b3c4d";
+        String device = "/dev/sdh";
+
+        EC2Method attachVolumeMock = mock(EC2Method.class);
+        when(attachVolumeMock.invoke()).thenReturn(resource("attach_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("VolumeId", volumeId), hasEntry("InstanceId", instanceId),
+                        hasEntry("Device", device), hasEntry("Action", "AttachVolume")))).thenReturn(attachVolumeMock);
+
+        ebsVolume.attach(volumeId, instanceId, device);
+
+        verify(attachVolumeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testDetach() throws Exception {
+        String volumeId = "vol-1a2b3c4d";
+
+        EC2Method detachVolumeMock = mock(EC2Method.class);
+        when(detachVolumeMock.invoke()).thenReturn(resource("detach_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("VolumeId", volumeId), hasEntry("Action", "DetachVolume"))))
+                .thenReturn(detachVolumeMock);
+
+        ebsVolume.detach(volumeId, false);
+
+        verify(detachVolumeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testDetachWithForce() throws Exception {
+        String volumeId = "vol-1a2b3c4d";
+
+        EC2Method detachVolumeMock = mock(EC2Method.class);
+        when(detachVolumeMock.invoke()).thenReturn(resource("detach_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("VolumeId", volumeId), hasEntry("Force", "true"),
+                        hasEntry("Action", "DetachVolume")))).thenReturn(detachVolumeMock);
+
+        ebsVolume.detach(volumeId, true);
+
+        verify(detachVolumeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testRemove() throws Exception {
+        String volumeId = "vol-1a2b3c4d";
+
+        EC2Method deleteVolumeMock = mock(EC2Method.class);
+        when(deleteVolumeMock.invoke()).thenReturn(resource("delete_volume.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("VolumeId", volumeId), hasEntry("Action", "DeleteVolume"))))
+                .thenReturn(deleteVolumeMock);
+
+        ebsVolume.remove(volumeId);
+
+        verify(deleteVolumeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testGetMaximumVolumeCount() throws Exception {
+        assertEquals(ebsVolumeCapabilities.getMaximumVolumeCount(), ebsVolume.getMaximumVolumeCount());
+    }
+
+    @Test
+    public void testGetMaximumVolumeSize() throws Exception {
+        assertEquals(ebsVolumeCapabilities.getMaximumVolumeSize(), ebsVolume.getMaximumVolumeSize());
+    }
+
+    @Test
+    public void testGetMinimumVolumeSize() throws Exception {
+        assertEquals(ebsVolumeCapabilities.getMinimumVolumeSize(), ebsVolume.getMinimumVolumeSize());
+    }
+
+    @Test
+    public void testGetProviderTermForVolume() throws Exception {
+        assertEquals(ebsVolumeCapabilities.getProviderTermForVolume(Locale.ENGLISH),
+                ebsVolume.getProviderTermForVolume(Locale.ENGLISH));
+    }
+
+    @Test
+    public void testListPossibleDeviceIds() throws Exception {
+        assertEquals(ebsVolumeCapabilities.listPossibleDeviceIds(Platform.WINDOWS),
+                ebsVolume.listPossibleDeviceIds(Platform.WINDOWS));
+
+        assertEquals(ebsVolumeCapabilities.listPossibleDeviceIds(Platform.UNIX),
+                ebsVolume.listPossibleDeviceIds(Platform.UNIX));
+
+        assertEquals(ebsVolumeCapabilities.listPossibleDeviceIds(Platform.UBUNTU),
+                ebsVolume.listPossibleDeviceIds(Platform.UBUNTU));
+    }
+
+    @Test
+    public void testListSupportedFormats() throws Exception {
+        assertEquals(ebsVolumeCapabilities.listSupportedFormats(), ebsVolume.listSupportedFormats());
+    }
+
+    @Test
+    public void testGetVolumeProductRequirement() throws Exception {
+        assertEquals(ebsVolumeCapabilities.getVolumeProductRequirement(), ebsVolume.getVolumeProductRequirement());
+    }
+
+    @Test
+    public void testIsVolumeSizeDeterminedByProduct() throws Exception {
+        assertEquals(ebsVolumeCapabilities.isVolumeSizeDeterminedByProduct(), ebsVolume.isVolumeSizeDeterminedByProduct());
     }
 }
