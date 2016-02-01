@@ -21,7 +21,6 @@
 
 package org.dasein.cloud.aws.compute;
 
-import org.dasein.cloud.Capabilities;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ResourceStatus;
