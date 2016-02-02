@@ -38,6 +38,7 @@ import org.dasein.cloud.compute.VolumeType;
 import org.dasein.cloud.dc.DataCenter;
 import org.dasein.util.uom.storage.Gigabyte;
 import org.dasein.util.uom.storage.Storage;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -49,6 +50,7 @@ import org.w3c.dom.Document;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -78,6 +80,8 @@ public class EBSVolumeTest extends AwsTestBase {
     private EBSVolume ebsVolume;
     private EBSVolumeCapabilities ebsVolumeCapabilities;
 
+    private TimeZone backup;
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -87,9 +91,16 @@ public class EBSVolumeTest extends AwsTestBase {
 
         PowerMockito.doReturn(dataCenterServicesStub).when(awsCloudStub).getDataCenterServices();
 
-
         ebsVolume = new EBSVolume(awsCloudStub);
         ebsVolumeCapabilities = new EBSVolumeCapabilities(awsCloudStub);
+
+        backup = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("GMT"));
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        TimeZone.setDefault(backup);
     }
 
     protected Document resource(String resourceName) throws Exception {
@@ -125,7 +136,7 @@ public class EBSVolumeTest extends AwsTestBase {
         assertTrue(volume.getSize().getUnitOfMeasure() instanceof Gigabyte);
         assertNull(volume.getProviderSnapshotId());
         assertEquals("us-east-1", volume.getProviderRegionId());
-        assertEquals(1452148872485l, volume.getCreationTimestamp());
+        assertEquals(1452177672485l, volume.getCreationTimestamp());
         assertEquals(VolumeState.AVAILABLE, volume.getCurrentState());
 
         assertEquals("i-1a2b3c4d", volume.getProviderVirtualMachineId());

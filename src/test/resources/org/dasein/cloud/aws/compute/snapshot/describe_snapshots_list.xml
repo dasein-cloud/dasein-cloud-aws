@@ -28,7 +28,7 @@
             <status>pending</status>
             <startTime>2016-01-07T14:41:12.485Z</startTime>
             <progress>30%</progress>
-            <ownerId>111122223333</ownerId>
+            <ownerId>123456789012</ownerId>
             <volumeSize>15</volumeSize>
             <description>Daily Backup</description>
             <tagSet>
@@ -38,7 +38,28 @@
                 </item>
                 <item>
                     <key>Name</key>
-                    <value>demo_snapshot</value>
+                    <value>demo_snapshot_1</value>
+                </item>
+            </tagSet>
+            <encrypted>true</encrypted>
+        </item>
+        <item>
+            <snapshotId>snap-5a6b7c8d</snapshotId>
+            <volumeId>vol-5a6b7c8d</volumeId>
+            <status>completed</status>
+            <startTime>2016-01-07T14:41:12.485Z</startTime>
+            <progress>30%</progress>
+            <ownerId>123456789012</ownerId>
+            <volumeSize>15</volumeSize>
+            <description>Daily Backup</description>
+            <tagSet>
+                <item>
+                    <key>Purpose</key>
+                    <value>demo_db_14_backup</value>
+                </item>
+                <item>
+                    <key>Name</key>
+                    <value>demo_snapshot_2</value>
                 </item>
             </tagSet>
             <encrypted>true</encrypted>
