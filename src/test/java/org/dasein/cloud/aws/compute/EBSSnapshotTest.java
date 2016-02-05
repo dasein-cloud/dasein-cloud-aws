@@ -25,6 +25,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.compute.Snapshot;
+import org.dasein.cloud.compute.SnapshotCreateOptions;
 import org.dasein.cloud.compute.SnapshotFilterOptions;
 import org.dasein.cloud.compute.SnapshotState;
 import org.junit.Before;
@@ -46,6 +47,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -167,5 +170,156 @@ public class EBSSnapshotTest extends AwsTestBase {
         List<Snapshot> snapshots = toList(ebsSnapshot
                 .listSnapshots(SnapshotFilterOptions.getInstance().withAccountNumber(ACCOUNT_NO).withTags(tags)));
         assertEquals(1, snapshots.size());
+    }
+
+    @Test
+    public void testAddSnapshotShare() throws Exception {
+        String snapshotId = "snap-1a2b3c4d";
+        String accountId = "user-1a2b3c4d";
+
+        EC2Method modifySnapshotAttributeMock = mock(EC2Method.class);
+        when(modifySnapshotAttributeMock.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("UserId.0", accountId),
+                        hasEntry("Attribute", "createVolumePermission"), hasEntry("OperationType", "add"),
+                        hasEntry("Action", "ModifySnapshotAttribute")))).thenReturn(modifySnapshotAttributeMock);
+
+        ebsSnapshot.addSnapshotShare(snapshotId, accountId);
+
+        verify(modifySnapshotAttributeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testAddPublicShare() throws Exception {
+        String snapshotId = "snap-1a2b3c4d";
+
+        EC2Method modifySnapshotAttributeMock = mock(EC2Method.class);
+        when(modifySnapshotAttributeMock.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("UserGroup.1", "all"),
+                        hasEntry("Attribute", "createVolumePermission"), hasEntry("OperationType", "add"),
+                        hasEntry("Action", "ModifySnapshotAttribute")))).thenReturn(modifySnapshotAttributeMock);
+
+        ebsSnapshot.addPublicShare(snapshotId);
+
+        verify(modifySnapshotAttributeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testRemoveAllSnapshotShares() throws Exception {
+        String snapshotId = "snap-1a2b3c4d";
+
+        EC2Method describeSnapshotAttributeStub = mock(EC2Method.class);
+        when(describeSnapshotAttributeStub.invoke()).thenReturn(resource("describe_snapshot_attribute_share.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId.1", snapshotId), hasEntry("Attribute", "createVolumePermission"),
+                        hasEntry("Action", "DescribeSnapshotAttribute")))).thenReturn(describeSnapshotAttributeStub);
+
+        EC2Method modifySnapshotAttributeMock_removeShares = mock(EC2Method.class);
+        when(modifySnapshotAttributeMock_removeShares.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("UserId.0", "user-1a2b3c4d"),
+                        hasEntry("UserId.1", "user-5a6b7c8d"), hasEntry("Attribute", "createVolumePermission"),
+                        hasEntry("OperationType", "remove"), hasEntry("Action", "ModifySnapshotAttribute"))))
+                .thenReturn(modifySnapshotAttributeMock_removeShares);
+
+        EC2Method modifySnapshotAttributeMock_removePublicShare = mock(EC2Method.class);
+        when(modifySnapshotAttributeMock_removePublicShare.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("UserGroup.1", "all"),
+                        hasEntry("Attribute", "createVolumePermission"), hasEntry("OperationType", "remove"),
+                        hasEntry("Action", "ModifySnapshotAttribute")))).thenReturn(modifySnapshotAttributeMock_removePublicShare);
+
+        ebsSnapshot.removeAllSnapshotShares(snapshotId);
+
+        verify(modifySnapshotAttributeMock_removeShares, times(1)).invoke();
+        verify(modifySnapshotAttributeMock_removePublicShare, times(1)).invoke();
+    }
+
+    @Test
+    public void testRemoveSnapshotShare() throws Exception {
+        String snapshotId = "snap-1a2b3c4d";
+        String accountId = "user-1a2b3c4d";
+
+        EC2Method modifySnapshotAttributeMock = mock(EC2Method.class);
+        when(modifySnapshotAttributeMock.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("UserId.0", accountId),
+                        hasEntry("Attribute", "createVolumePermission"), hasEntry("OperationType", "remove"),
+                        hasEntry("Action", "ModifySnapshotAttribute")))).thenReturn(modifySnapshotAttributeMock);
+
+        ebsSnapshot.removeSnapshotShare(snapshotId, accountId);
+
+        verify(modifySnapshotAttributeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testRemovePublicShare() throws Exception {
+        String snapshotId = "snap-1a2b3c4d";
+
+        EC2Method modifySnapshotAttributeMock = mock(EC2Method.class);
+        when(modifySnapshotAttributeMock.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("UserGroup.1", "all"),
+                        hasEntry("Attribute", "createVolumePermission"), hasEntry("OperationType", "remove"),
+                        hasEntry("Action", "ModifySnapshotAttribute")))).thenReturn(modifySnapshotAttributeMock);
+
+        ebsSnapshot.removePublicShare(snapshotId);
+
+        verify(modifySnapshotAttributeMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testCreateSnapshot() throws Exception {
+        String sourceVolumeId = "vol-1a2b3c4d";
+        String snapshotDescription = "Daily Backup";
+
+        EC2Method createSnapshotMock = mock(EC2Method.class);
+        when(createSnapshotMock.invoke()).thenReturn(resource("create_snapshot.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("VolumeId", sourceVolumeId), hasEntry("Description", snapshotDescription),
+                        hasEntry("Action", "CreateSnapshot")))).thenReturn(createSnapshotMock);
+
+        String snapshotId = ebsSnapshot.createSnapshot(
+                SnapshotCreateOptions.getInstanceForCreate(sourceVolumeId, null, snapshotDescription));
+
+        assertEquals("snap-1a2b3c4d", snapshotId);
+        verify(createSnapshotMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testCreateSnapshotCopy() throws Exception {
+        String sourceSnapshotId = "vol-1a2b3c4d";
+        String sourceSnapshotRegion = "us-west-1";
+        String snapshotDescription = "Daily Backup";
+
+        EC2Method copySnapshotMock = mock(EC2Method.class);
+        when(copySnapshotMock.invoke()).thenReturn(resource("copy_snapshot.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SourceSnapshotId", sourceSnapshotId),
+                        hasEntry("SourceRegion", sourceSnapshotRegion), hasEntry("Description", snapshotDescription),
+                        hasEntry("Action", "CopySnapshot")))).thenReturn(copySnapshotMock);
+
+        String snapshotId = ebsSnapshot.createSnapshot(
+                SnapshotCreateOptions.getInstanceForCopy(sourceSnapshotRegion, sourceSnapshotId, null,
+                        snapshotDescription));
+
+        assertEquals("snap-2a2b3c4d", snapshotId);
+        verify(copySnapshotMock, times(1)).invoke();
+    }
+
+    @Test
+    public void testRemove() throws Exception {
+        String snapshotId = "snap-1a2b3c4d";
+
+        EC2Method deleteSnapshotMock = mock(EC2Method.class);
+        when(deleteSnapshotMock.invoke()).thenReturn(resource("modify_snapshot_attribute.xml"));
+        PowerMockito.whenNew(EC2Method.class).withArguments(eq(awsCloudStub),
+                argThat(allOf(hasEntry("SnapshotId", snapshotId), hasEntry("Action", "DeleteSnapshot"))))
+                .thenReturn(deleteSnapshotMock);
+
+        ebsSnapshot.remove(snapshotId);
+
+        verify(deleteSnapshotMock, times(1)).invoke();
     }
 }
