@@ -19,14 +19,7 @@
   ~
   -->
 
-<CreateVolumeResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
+<DeleteSnapshotResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
     <requestId>59dbff89-35bd-4eac-99ed-be587EXAMPLE</requestId>
-    <volumeId>vol-1a2b3c4d</volumeId>
-    <size>80</size>
-    <snapshotId/>
-    <availabilityZone>us-east-1a</availabilityZone>
-    <status>creating</status>
-    <createTime>2016-01-07T14:41:12.485Z</createTime>
-    <volumeType>standard</volumeType>
-    <encrypted>true</encrypted>
-</CreateVolumeResponse>
+    <return>true</return>
+</DeleteSnapshotResponse>

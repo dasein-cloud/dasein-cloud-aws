@@ -29,6 +29,9 @@ import org.w3c.dom.Document;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -73,4 +76,14 @@ public class AwsTestBase {
         return documentBuilder.parse(getClass().getClassLoader().getResourceAsStream(resourceName));
     }
 
+    protected <T> List<T> toList(Iterable<T> iterable) {
+        List<T> list = new ArrayList<>(5);
+
+        Iterator<T> iterator = iterable.iterator();
+        while(iterator.hasNext()) {
+            list.add(iterator.next());
+        }
+
+        return list;
+    }
 }

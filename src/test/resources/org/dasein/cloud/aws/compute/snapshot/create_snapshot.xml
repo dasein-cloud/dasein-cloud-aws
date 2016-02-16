@@ -19,14 +19,14 @@
   ~
   -->
 
-<CreateVolumeResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
+<CreateSnapshotResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
     <requestId>59dbff89-35bd-4eac-99ed-be587EXAMPLE</requestId>
+    <snapshotId>snap-1a2b3c4d</snapshotId>
     <volumeId>vol-1a2b3c4d</volumeId>
-    <size>80</size>
-    <snapshotId/>
-    <availabilityZone>us-east-1a</availabilityZone>
-    <status>creating</status>
-    <createTime>2016-01-07T14:41:12.485Z</createTime>
-    <volumeType>standard</volumeType>
-    <encrypted>true</encrypted>
-</CreateVolumeResponse>
+    <status>pending</status>
+    <startTime>2016-01-07T14:41:12.485Z</startTime>
+    <progress>60%</progress>
+    <ownerId>123456789012</ownerId>
+    <volumeSize>30</volumeSize>
+    <description>Daily Backup</description>
+</CreateSnapshotResponse>
