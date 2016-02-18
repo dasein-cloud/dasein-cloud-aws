@@ -4,12 +4,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
-
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.List;
-
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ResourceStatus;
@@ -20,9 +15,7 @@ import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.network.DNSRecord;
 import org.dasein.cloud.network.DNSRecordType;
 import org.dasein.cloud.network.DNSZone;
-
 import static org.junit.Assert.*;
-
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -399,46 +392,45 @@ public class Route53Test extends AwsTestBase {
 		int recordTTL = 900;
 		String[] recordValues = Arrays.asList("192.0.2.3").toArray(new String[1]);
 		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        when(route53MethodStub.invoke())
+		PowerMockito.doCallRealMethod().when(awsCloudStub).getRoute53Version();
+		
+		Route53Method getHostedZoneMethodStub = mock(Route53Method.class);
+        when(getHostedZoneMethodStub.invoke())
         	.thenReturn(resource(
-        		"org/dasein/cloud/aws/network/route53/get_hosted_zone.xml"))
-        	.thenReturn(resource(
-        		"org/dasein/cloud/aws/network/route53/get_hosted_zone.xml"))
-        	.thenReturn(resource(
-        		"org/dasein/cloud/aws/network/route53/list_empty_record_sets.xml"))
-        	.thenReturn(resource(
-        		"org/dasein/cloud/aws/network/route53/get_hosted_zone.xml"))
-            .thenReturn(resource(
-        		"org/dasein/cloud/aws/network/route53/list_record_sets.xml"));
-        when(route53MethodStub.invoke(Mockito.anyString()))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/change_basic_record_sets.xml"));
-        
+        		"org/dasein/cloud/aws/network/route53/get_hosted_zone.xml"));
         PowerMockito.whenNew(Route53Method.class)
 			.withArguments(
 				eq(Route53Method.GET_HOSTED_ZONE), 
 				eq(awsCloudStub), 
 				Mockito.anyString())
-			.thenReturn(route53MethodStub);
+			.thenReturn(getHostedZoneMethodStub);
+        
+        Route53Method listRecordSetsMethodStub = mock(Route53Method.class);
+        when(listRecordSetsMethodStub.invoke())
+        	.thenReturn(resource(
+        		"org/dasein/cloud/aws/network/route53/list_empty_record_sets.xml"))
+    		.thenReturn(resource(
+    			"org/dasein/cloud/aws/network/route53/list_record_sets.xml"));
         PowerMockito.whenNew(Route53Method.class)
 			.withArguments(
 				eq(Route53Method.LIST_RESOURCE_RECORD_SETS), 
 				eq(awsCloudStub), 
 				Mockito.anyString())
-			.thenReturn(route53MethodStub);
+			.thenReturn(listRecordSetsMethodStub);
+        
+        Route53Method changeRecordSetsMethodStub = mock(Route53Method.class);
+        when(changeRecordSetsMethodStub.invoke(Mockito.anyString()))
+    		.thenReturn(resource("org/dasein/cloud/aws/network/route53/change_basic_record_sets.xml"));
         PowerMockito.whenNew(Route53Method.class)
 			.withArguments(
 				eq(Route53Method.CHANGE_RESOURCE_RECORD_SETS), 
 				eq(awsCloudStub), 
 				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
-		DNSRecord dnsRecord = route53.addDnsRecord(providerDnsZoneId, DNSRecordType.A, recordName, recordTTL, recordValues);
-		assertEquals("Z1D633PJN98FT9", dnsRecord.getProviderZoneId());
-		assertEquals(recordName, dnsRecord.getName());
-		assertEquals(recordTTL, dnsRecord.getTtl());
-		assertEquals(DNSRecordType.A, dnsRecord.getType());
-		assertArrayEquals(recordValues, dnsRecord.getValues());
+			.thenReturn(changeRecordSetsMethodStub);
+        
+        assertReflectionEquals(
+        		createDNSRecord("Z1D633PJN98FT9", recordName, recordTTL, DNSRecordType.A, recordValues), 
+        		route53.addDnsRecord(providerDnsZoneId, DNSRecordType.A, recordName, recordTTL, recordValues));
 	}
 	
 	@Test

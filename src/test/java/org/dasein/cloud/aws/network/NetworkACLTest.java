@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import junit.framework.AssertionFailedError;
-
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Tag;
@@ -57,22 +56,25 @@ public class NetworkACLTest extends AwsTestBase {
 		String firewallId = "acl-5d659634";
 		String withSubnetId = "subnet-ff669596";
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/replace_network_acl_association.xml"));
+		EC2Method describeNetworkAclsMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
             		hasEntry("Filter.1.Name", "association.subnet-id"),
             		hasEntry("Filter.1.Value.1", withSubnetId),
             		hasEntry("Action", "DescribeNetworkAcls"))))
-            .thenReturn(ec2MethodStub);
+            .thenReturn(describeNetworkAclsMethodStub);
+        
+        EC2Method replaceNetworkAclAssociationMethodStub = mock(EC2Method.class);
+        when(replaceNetworkAclAssociationMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/replace_network_acl_association.xml"));
         PowerMockito.whenNew(EC2Method.class)
         .withArguments(eq(awsCloudStub), argThat(allOf(
         		hasEntry("AssociationId", "aclassoc-5c659635"),
         		hasEntry("NetworkAclId", firewallId),
         		hasEntry("Action", "ReplaceNetworkAclAssociation"))))
-        .thenReturn(ec2MethodStub);
+        .thenReturn(replaceNetworkAclAssociationMethodStub);
         
 		networkACL.associateWithSubnet(firewallId, withSubnetId);
 	}
@@ -102,22 +104,25 @@ public class NetworkACLTest extends AwsTestBase {
 		String firewallId = "acl-5d659634";
 		String withSubnetId = "subnet-ff669596";
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/replace_network_acl_association_failed.xml"));
+		EC2Method describeNetworkAclsMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
             		hasEntry("Filter.1.Name", "association.subnet-id"),
             		hasEntry("Filter.1.Value.1", withSubnetId),
             		hasEntry("Action", "DescribeNetworkAcls"))))
-            .thenReturn(ec2MethodStub);
+            .thenReturn(describeNetworkAclsMethodStub);
+        
+        EC2Method replaceNetworkAckAssociationMethodStub = mock(EC2Method.class);
+        when(replaceNetworkAckAssociationMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/replace_network_acl_association_failed.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("AssociationId", "aclassoc-5c659635"),
 	        		hasEntry("NetworkAclId", firewallId),
 	        		hasEntry("Action", "ReplaceNetworkAclAssociation"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(replaceNetworkAckAssociationMethodStub);
         
 		networkACL.associateWithSubnet(firewallId, withSubnetId);
 	}
@@ -126,14 +131,17 @@ public class NetworkACLTest extends AwsTestBase {
 	public void authorizeShouldPostWithCorrectRequest() throws Exception {
 		String firewallId = "acl-5566953c";
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl_entry.xml"));
+		EC2Method describeNetworkAclsMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
             		hasEntry("Action", "DescribeNetworkAcls"))))
-            .thenReturn(ec2MethodStub);
+            .thenReturn(describeNetworkAclsMethodStub);
+        
+        EC2Method createNetworkAclEntryMethodStub = mock(EC2Method.class);
+        when(createNetworkAclEntryMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl_entry.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("NetworkAclId", firewallId),
@@ -145,7 +153,7 @@ public class NetworkACLTest extends AwsTestBase {
 	        		hasEntry("PortRange.From", "80"),
 	        		hasEntry("PortRange.To", "80"),
 	        		hasEntry("Action", "CreateNetworkAclEntry"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(createNetworkAclEntryMethodStub);
         
 		assertEquals(
 				firewallId + ":" + Direction.INGRESS.name() + ":110",
@@ -186,20 +194,26 @@ public class NetworkACLTest extends AwsTestBase {
 		PowerMockito.doReturn(true).when(awsCloudStub).createTags(
 				Mockito.anyString(), Mockito.anyString(), (Tag[]) Mockito.any());
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl_entry.xml"));
+        EC2Method createNetworkAclMethodStub = mock(EC2Method.class);
+        when(createNetworkAclMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
             		hasEntry("VpcId", "vpc-11ad4878"),
             		hasEntry("Action", "CreateNetworkAcl"))))
-            .thenReturn(ec2MethodStub);
+            .thenReturn(createNetworkAclMethodStub);
+        
+        EC2Method describeNetworkAclsMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"));
         PowerMockito.whenNew(EC2Method.class)
-        .withArguments(eq(awsCloudStub), argThat(allOf(
-        		hasEntry("Action", "DescribeNetworkAcls"))))
-        .thenReturn(ec2MethodStub);
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("Action", "DescribeNetworkAcls"))))
+	        .thenReturn(describeNetworkAclsMethodStub);
+        
+        EC2Method replaceNetworkAclEntryMethodStub = mock(EC2Method.class);
+        when(replaceNetworkAclEntryMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl_entry.xml"));
 	    PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("NetworkAclId", "acl-5fb85d36"),
@@ -211,7 +225,7 @@ public class NetworkACLTest extends AwsTestBase {
 	        		hasEntry("PortRange.From", "80"),
 	        		hasEntry("PortRange.To", "80"),
 	        		hasEntry("Action", "ReplaceNetworkAclEntry"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(replaceNetworkAclEntryMethodStub);
 		
 	    assertEquals(
 				"acl-5fb85d36",
@@ -232,6 +246,7 @@ public class NetworkACLTest extends AwsTestBase {
 	
 	@Test
 	public void getFirewallShouldReturnCorrectResult() throws Exception {
+		
 		String firewallId = "acl-5566953c";
 		
 		EC2Method ec2MethodStub = mock(EC2Method.class);
@@ -243,14 +258,9 @@ public class NetworkACLTest extends AwsTestBase {
             		hasEntry("Action", "DescribeNetworkAcls"))))
             .thenReturn(ec2MethodStub);
         
-		Firewall result = networkACL.getFirewall(firewallId);
-		assertEquals(firewallId, result.getProviderFirewallId());
-		assertEquals(firewallId, result.getDescription());
-		assertEquals(firewallId, result.getName());
-		assertTrue(result.isActive());
-		assertTrue(result.isAvailable());
-		assertEquals(REGION, result.getRegionId());
-		assertEquals("vpc-5266953b", result.getProviderVlanId());
+		assertReflectionEquals(
+				createFirewall(firewallId, "vpc-5266953b"), 
+				networkACL.getFirewall(firewallId));
 	}
 	
 	@Test
@@ -298,25 +308,10 @@ public class NetworkACLTest extends AwsTestBase {
             		hasEntry("Action", "DescribeNetworkAcls"))))
             .thenReturn(ec2MethodStub);
     
-        Firewall firewall1 = new Firewall();
-        firewall1.setActive(true);
-        firewall1.setAvailable(true);
-        firewall1.setProviderFirewallId("acl-5566953c");
-        firewall1.setDescription("acl-5566953c");
-        firewall1.setName("acl-5566953c");
-        firewall1.setProviderVlanId("vpc-5266953b");
-        firewall1.setRegionId(REGION);
-        Firewall firewall2 = new Firewall();
-        firewall2.setActive(true);
-        firewall2.setAvailable(true);
-        firewall2.setProviderFirewallId("acl-5d659634");
-        firewall2.setDescription("acl-5d659634");
-        firewall2.setName("acl-5d659634");
-        firewall2.setProviderVlanId("vpc-5266953b");
-        firewall2.setRegionId(REGION);
-        firewall2.setSubnetAssociations(Arrays.asList("subnet-f0669599", "subnet-ff669596").toArray(new String[2]));
         assertReflectionEquals(
-        		Arrays.asList(firewall1, firewall2),
+        		Arrays.asList(
+        				createFirewall("acl-5566953c", "vpc-5266953b"), 
+        				createFirewall("acl-5d659634", "vpc-5266953b", "subnet-f0669599", "subnet-ff669596")),
         		networkACL.listFirewalls());
 	}
 	
@@ -333,17 +328,10 @@ public class NetworkACLTest extends AwsTestBase {
             		hasEntry("Action", "DescribeNetworkAcls"))))
             .thenReturn(ec2MethodStub);
         
-		FirewallRule rule1 = FirewallRule.getInstance(
-				firewallId + ":" + Direction.EGRESS.name() + ":" + String.valueOf(110), 
-				firewallId, RuleTarget.getGlobal(firewallId), Direction.EGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getCIDR("0.0.0.0/0"), 49152, 65535);
-		rule1.withPrecedence(110);
-		FirewallRule rule2 = FirewallRule.getInstance(
-				firewallId + ":" + Direction.EGRESS.name() + ":" + String.valueOf(32767), 
-				firewallId, RuleTarget.getGlobal(firewallId), Direction.EGRESS, Protocol.ANY, Permission.DENY, RuleTarget.getCIDR("0.0.0.0/0"), -1, -1);
-		rule2.withPrecedence(32767);
-		
 		assertReflectionEquals (
-				Arrays.asList(rule1, rule2),
+				Arrays.asList(
+						createFirewallRule(firewallId, Direction.EGRESS, 110, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(firewallId), RuleTarget.getCIDR("0.0.0.0/0"), 49152, 65535), 
+						createFirewallRule(firewallId, Direction.EGRESS, 32767, Protocol.ANY, Permission.DENY, RuleTarget.getGlobal(firewallId), RuleTarget.getCIDR("0.0.0.0/0"), -1, -1)),
 				networkACL.listRules(firewallId));
 	}
 	
@@ -380,25 +368,31 @@ public class NetworkACLTest extends AwsTestBase {
 		
 		String firewallId = "acl-5566953c";
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acl.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/delete_network_acl.xml"));
+		EC2Method describeNetworkAclMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acl.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("NetworkAclId.1", firewallId), 
 	        		hasEntry("Action", "DescribeNetworkAcls"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(describeNetworkAclMethodStub);
+        
+        EC2Method describeNetworkAclsMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("Action", "DescribeNetworkAcls"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(describeNetworkAclsMethodStub);
+      
+        EC2Method deleteNetworkAclMethodStub = mock(EC2Method.class);
+        when(deleteNetworkAclMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/delete_network_acl.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
             		hasEntry("NetworkAclId", firewallId),
             		hasEntry("Action", "DeleteNetworkAcl"))))
-            .thenReturn(ec2MethodStub);
+            .thenReturn(deleteNetworkAclMethodStub);
 		
 		networkACL.removeFirewall(firewallId);
 	}
@@ -425,6 +419,38 @@ public class NetworkACLTest extends AwsTestBase {
 	public void revokeShouldThrowExceptionIfIdIsInvalid() throws InternalException, CloudException {
 		String providerFirewallRuleId = "jfijfd:fdifjdi";
 		networkACL.revoke(providerFirewallRuleId);
+	}
+	
+	private Firewall createFirewall(String id, String vlanId, String ... subnets) {
+		Firewall firewall = new Firewall();
+		firewall.setProviderFirewallId(id);
+		firewall.setDescription(firewall.getProviderFirewallId());
+		firewall.setName(firewall.getProviderFirewallId());
+		firewall.setActive(true);
+		firewall.setAvailable(true);
+		firewall.setRegionId(REGION);
+		firewall.setProviderVlanId(vlanId);
+		if (subnets.length == 0) {
+			firewall.setSubnetAssociations(null);
+		} else {
+			firewall.setSubnetAssociations(subnets);
+		}
+        return firewall;
+	}
+	
+	private FirewallRule createFirewallRule(String firewallId, Direction direction, int precedence, Protocol protocol, 
+			Permission permission, RuleTarget sourceEndpoint, RuleTarget destinationEndpoint, int startPort, int endPort) {
+		FirewallRule rule = FirewallRule.getInstance(firewallId + ":" + direction.name() + ":" + String.valueOf(precedence), 
+				firewallId, 
+				sourceEndpoint,
+				direction, 
+				protocol,
+				permission, 
+				destinationEndpoint,
+				startPort,
+				endPort);
+		rule.withPrecedence(precedence);
+		return rule;
 	}
 	
 }

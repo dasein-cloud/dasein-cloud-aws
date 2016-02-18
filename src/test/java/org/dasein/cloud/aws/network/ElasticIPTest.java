@@ -7,8 +7,9 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
+
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
@@ -48,6 +49,8 @@ public class ElasticIPTest extends AwsTestBase {
 	@Test
 	public void getIpAddressShouldReturnVpcAddress() throws Exception {
 		
+		String ipAddressId = "eipalloc-08229861";
+		
 		EC2Method listIpMethodStub = mock(EC2Method.class);
         when(listIpMethodStub.invoke()).thenReturn(
         		resource("org/dasein/cloud/aws/network/ipaddress/describe_addresses.xml"));
@@ -56,22 +59,15 @@ public class ElasticIPTest extends AwsTestBase {
                 		hasEntry("Action", "DescribeAddresses"))))
                 .thenReturn(listIpMethodStub);
 		
-        IpAddress expectedResult = new IpAddress();
-        expectedResult.setIpAddressId("eipalloc-08229861");
-        expectedResult.setProviderAssociationId("eipassoc-f0229899");
-        expectedResult.setAddressType(AddressType.PUBLIC);
-        expectedResult.setProviderNetworkInterfaceId("eni-ef229886");
-        expectedResult.setVersion(IPVersion.IPV4);
-        expectedResult.setAddress("46.51.219.63");
-        expectedResult.setRegionId(REGION);
-        expectedResult.setServerId("i-64600030");
-        expectedResult.setForVlan(true);
-        
-        assertReflectionEquals(expectedResult, elasticIP.getIpAddress("eipalloc-08229861"));
+        assertReflectionEquals(
+        		createIpAddress(ipAddressId, "eipassoc-f0229899", AddressType.PUBLIC, "eni-ef229886", IPVersion.IPV4, "46.51.219.63", "i-64600030", true), 
+        		elasticIP.getIpAddress(ipAddressId));
 	}
 	
 	@Test
-	public void getIpAddressShouldReturnIpAddress() throws EC2Exception, CloudException, InternalException, Exception {
+	public void getIpAddressShouldReturnIpAddress() throws Exception {
+		
+		String ipAddressId = "46.51.219.64";
 		
 		EC2Method listIpMethodStub = mock(EC2Method.class);
         when(listIpMethodStub.invoke()).thenReturn(
@@ -81,22 +77,13 @@ public class ElasticIPTest extends AwsTestBase {
                 		hasEntry("Action", "DescribeAddresses"))))
                 .thenReturn(listIpMethodStub);
 		
-        IpAddress expectedResult = new IpAddress();
-        expectedResult.setIpAddressId("46.51.219.64");
-        expectedResult.setProviderAssociationId("eipassoc-f0229810");
-        expectedResult.setAddressType(AddressType.PUBLIC);
-        expectedResult.setProviderNetworkInterfaceId("eni-ef229810");
-        expectedResult.setVersion(IPVersion.IPV4);
-        expectedResult.setAddress("46.51.219.64");
-        expectedResult.setRegionId(REGION);
-        expectedResult.setServerId("i-64600031");
-        expectedResult.setForVlan(false);
-        
-		assertReflectionEquals(expectedResult, elasticIP.getIpAddress("46.51.219.64"));
+		assertReflectionEquals(
+				createIpAddress(ipAddressId, "eipassoc-f0229810", AddressType.PUBLIC, "eni-ef229810", IPVersion.IPV4, ipAddressId, "i-64600031", false), 
+				elasticIP.getIpAddress(ipAddressId));
 	}
 	
 	@Test
-	public void listAllPublicIpPoolShouldReturnCorrectResult() throws EC2Exception, CloudException, InternalException, Exception {
+	public void listAllPublicIpPoolShouldReturnCorrectResult() throws Exception {
 		
 		EC2Method listIpMethodStub = mock(EC2Method.class);
         when(listIpMethodStub.invoke()).thenReturn(
@@ -106,42 +93,16 @@ public class ElasticIPTest extends AwsTestBase {
                 		hasEntry("Action", "DescribeAddresses"))))
                 .thenReturn(listIpMethodStub);
 		
-		Iterable<IpAddress> ipAddresses = elasticIP.listPublicIpPool(false);
-		Iterator<IpAddress> iter = ipAddresses.iterator();
-		int count = 0;
-		while (iter.hasNext()) {
-			count++;
-			IpAddress expectedResult = new IpAddress();
-			if (count == 1) {
-				expectedResult.setIpAddressId("eipalloc-08229861");
-		        expectedResult.setProviderAssociationId("eipassoc-f0229899");
-		        expectedResult.setProviderNetworkInterfaceId("eni-ef229886");
-		        expectedResult.setAddress("46.51.219.63");
-		        expectedResult.setServerId("i-64600030");
-		        expectedResult.setForVlan(true);
-			} else if (count == 2) {
-				expectedResult.setIpAddressId("46.51.219.64");
-		        expectedResult.setProviderAssociationId("eipassoc-f0229810");
-		        expectedResult.setProviderNetworkInterfaceId("eni-ef229810");
-		        expectedResult.setAddress("46.51.219.64");
-		        expectedResult.setServerId("i-64600031");
-		        expectedResult.setForVlan(false);
-			} else if (count == 3) {
-				expectedResult.setIpAddressId("198.51.100.2");
-				expectedResult.setAddress("198.51.100.2");
-				expectedResult.setForVlan(false);
-			}
-			expectedResult.setAddressType(AddressType.PUBLIC);
-			expectedResult.setVersion(IPVersion.IPV4);
-			expectedResult.setRegionId(REGION);
-			
-			assertReflectionEquals(expectedResult, iter.next());
-		}
-		assertEquals(3, count);
+		assertReflectionEquals(
+				Arrays.asList(
+						createIpAddress("eipalloc-08229861", "eipassoc-f0229899", AddressType.PUBLIC, "eni-ef229886", IPVersion.IPV4, "46.51.219.63", "i-64600030", true),
+						createIpAddress("46.51.219.64", "eipassoc-f0229810", AddressType.PUBLIC, "eni-ef229810", IPVersion.IPV4, "46.51.219.64", "i-64600031", false),
+						createIpAddress("198.51.100.2", null, AddressType.PUBLIC, null, IPVersion.IPV4, "198.51.100.2", null, false)), 
+				elasticIP.listPublicIpPool(false));
 	}
 	
 	@Test
-	public void listUnassignedPublicIpPoolShouldReturnCorrectResult() throws EC2Exception, CloudException, InternalException, Exception {
+	public void listUnassignedPublicIpPoolShouldReturnCorrectResult() throws Exception {
 		
 		EC2Method listIpMethodStub = mock(EC2Method.class);
         when(listIpMethodStub.invoke()).thenReturn(
@@ -151,24 +112,10 @@ public class ElasticIPTest extends AwsTestBase {
                 		hasEntry("Action", "DescribeAddresses"))))
                 .thenReturn(listIpMethodStub);
 		
-		Iterable<IpAddress> ipAddresses = elasticIP.listPublicIpPool(true);
-		Iterator<IpAddress> iter = ipAddresses.iterator();
-		int count = 0;
-		while (iter.hasNext()) {
-			count++;
-			IpAddress expectedResult = new IpAddress();
-			if (count == 1) {
-				expectedResult.setIpAddressId("198.51.100.2");
-				expectedResult.setAddress("198.51.100.2");
-				expectedResult.setForVlan(false);
-			} 
-			expectedResult.setAddressType(AddressType.PUBLIC);
-			expectedResult.setVersion(IPVersion.IPV4);
-			expectedResult.setRegionId(REGION);
-			
-			assertReflectionEquals(expectedResult, iter.next());
-		}
-		assertEquals(1, count);
+		assertReflectionEquals(
+				Arrays.asList(
+						createIpAddress("198.51.100.2", null, AddressType.PUBLIC, null, IPVersion.IPV4, "198.51.100.2", null, false)), 
+				elasticIP.listPublicIpPool(true));
 	}
 	
 	@Test
@@ -196,23 +143,13 @@ public class ElasticIPTest extends AwsTestBase {
                 .withArguments(eq(awsCloudStub), argThat(allOf(
                 		hasEntry("Action", "DescribeAddresses"))))
                 .thenReturn(listIpMethodStub);
-		
-		Iterable<ResourceStatus> resourceStatuses = elasticIP.listIpPoolStatus(IPVersion.IPV4);
-		Iterator<ResourceStatus> iter = resourceStatuses.iterator();
-		int count = 0;
-		while (iter.hasNext()) {
-			count++;
-			ResourceStatus expectedResult = null;
-			if (count == 1) {
-				expectedResult =  new ResourceStatus("eipalloc-08229861", false);
-			} else if (count == 2) {
-				expectedResult =  new ResourceStatus("46.51.219.64", false);
-			} else if (count == 3) {
-				expectedResult =  new ResourceStatus("198.51.100.2", true);
-			}
-			assertReflectionEquals(expectedResult, iter.next());
-		}
-		assertEquals(3, count);
+
+		assertReflectionEquals(
+				Arrays.asList(
+						new ResourceStatus("eipalloc-08229861", false),
+						new ResourceStatus("46.51.219.64", false),
+						new ResourceStatus("198.51.100.2", true)), 
+				elasticIP.listIpPoolStatus(IPVersion.IPV4));
 	}
 	
 	@Test
@@ -536,6 +473,21 @@ public class ElasticIPTest extends AwsTestBase {
 	@Test(expected = OperationNotSupportedException.class)
 	public void stopForwardShouldThrowException() throws InternalException, CloudException {
 		elasticIP.stopForward(null);
+	}
+	
+	private IpAddress createIpAddress(String ipAddressId, String associationId, AddressType addressType, 
+			String nicId, IPVersion version, String address, String serverId, boolean isForVlan) {
+		IpAddress ipAddress = new IpAddress();
+		ipAddress.setIpAddressId(ipAddressId);
+		ipAddress.setProviderAssociationId(associationId);
+		ipAddress.setAddressType(addressType);
+		ipAddress.setProviderNetworkInterfaceId(nicId);
+		ipAddress.setVersion(version);
+		ipAddress.setAddress(address);
+		ipAddress.setRegionId(REGION);
+		ipAddress.setServerId(serverId);
+		ipAddress.setForVlan(isForVlan);
+		return ipAddress;
 	}
 	
 }
