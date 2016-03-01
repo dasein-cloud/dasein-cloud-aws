@@ -12,12 +12,14 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import junit.framework.AssertionFailedError;
+
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.compute.EC2ComputeServices;
+import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.network.Direction;
@@ -161,28 +163,63 @@ public class NetworkACLTest extends AwsTestBase {
 	}
 	
 	@Test
-	public void createFirewallShouldPostWithCorrectRequest() throws Exception {
+	public void authorizeIcmpRuleShouldPostWithCorrectRequest() throws Exception {
+		String firewallId = "acl-5566953c";
 		
-		String name = null;
-		String description = null;
+		EC2Method describeNetworkAclsMethodStub = mock(EC2Method.class);
+        when(describeNetworkAclsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/describe_network_acls.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+            .withArguments(eq(awsCloudStub), argThat(allOf(
+            		hasEntry("Action", "DescribeNetworkAcls"))))
+            .thenReturn(describeNetworkAclsMethodStub);
+		
+        EC2Method createNetworkAclEntryMethodStub = mock(EC2Method.class);
+        when(createNetworkAclEntryMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl_entry.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("NetworkAclId", firewallId),
+	        		hasEntry("Egress", "false"),
+	        		hasEntry("RuleNumber", "110"),
+	        		hasEntry("Protocol", "1"),
+	        		hasEntry("RuleAction", "allow"),
+	        		hasEntry("CidrBlock", "0.0.0.0/0"),
+	        		hasEntry("Icmp.Code", "-1"),
+	        		hasEntry("Icmp.Type", "-1"),
+	        		hasEntry("Action", "CreateNetworkAclEntry"))))
+	        .thenReturn(createNetworkAclEntryMethodStub);
+        
+        assertEquals(
+				firewallId + ":" + Direction.INGRESS.name() + ":110",
+				networkACL.authorize(firewallId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR("0.0.0.0/0"), Protocol.ICMP, null, 0, 0, 110));
+	}
+	
+	@Test
+	public void createFirewallShouldPostWithCorrectRequest () throws Exception {
+		String inVlanId = "vpc-11ad4878";
 		
 		PowerMockito.doReturn(true).when(awsCloudStub).createTags(
 				Mockito.anyString(), Mockito.anyString(), (Tag[]) Mockito.any());
 		
-		FirewallCreateOptions options = FirewallCreateOptions.getInstance("vpc-11ad4878", name, description);
+		FirewallCreateOptions options = FirewallCreateOptions.getInstance(inVlanId, inVlanId, inVlanId);
 		
 		EC2Method ec2MethodStub = mock(EC2Method.class);
         when(ec2MethodStub.invoke())
         	.thenReturn(resource("org/dasein/cloud/aws/network/network_acl/create_network_acl.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
-            		hasEntry("VpcId", "vpc-11ad4878"),
+            		hasEntry("VpcId", inVlanId),
             		hasEntry("Action", "CreateNetworkAcl"))))
             .thenReturn(ec2MethodStub);
 		
-		assertEquals(
-				"acl-5fb85d36",
+		assertEquals("acl-5fb85d36",
 				networkACL.createFirewall(options));
+	}
+	
+	@Test(expected = CloudException.class)
+	public void createFirewallWithoutVlanShouldThrowException() throws Exception {
+		networkACL.createFirewall(FirewallCreateOptions.getInstance(null, null));
 	}
 	
 	@Test

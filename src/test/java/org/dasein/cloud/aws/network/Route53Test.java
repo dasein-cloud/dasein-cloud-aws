@@ -4,7 +4,9 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
+
 import java.util.Arrays;
+
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.ResourceStatus;
@@ -15,9 +17,13 @@ import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.network.DNSRecord;
 import org.dasein.cloud.network.DNSRecordType;
 import org.dasein.cloud.network.DNSZone;
+
 import static org.junit.Assert.*;
+
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
@@ -30,9 +36,14 @@ public class Route53Test extends AwsTestBase {
 
 	private Route53 route53;
 	
+	@Rule
+    public final TestName name = new TestName();
+	
 	@Before
 	public void setUp() {
+		
 		super.setUp();
+		
 		try {
 			PowerMockito.doReturn("AIDIODR4TAW7CSEXAMPLE".getBytes()).when(providerContextStub).getAccessPublic();
 			PowerMockito.doReturn("AIDIODR4TAW7CSEXAMPLE".getBytes()).when(providerContextStub).getAccessPrivate();
@@ -42,6 +53,56 @@ public class Route53Test extends AwsTestBase {
 					Mockito.anyString());
 		} catch (InternalException e) {
 			throw new RuntimeException("mock provider signAWS3 failed!");
+		}
+		
+		if (name.getMethodName().startsWith("isSubscribed")) {
+			try {
+				Route53Method route53MethodStub = mock(Route53Method.class);
+				if (name.getMethodName().endsWith("UnAuthorized")) {
+					when(route53MethodStub.invoke())
+			        	.thenThrow(EC2Exception.create(401, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+			        			"SC_UNAUTHORIZED", "SC_UNAUTHORIZED"));
+				} else if (name.getMethodName().endsWith("Forbidden")) {
+					when(route53MethodStub.invoke())
+			        	.thenThrow(EC2Exception.create(403, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+			        			"SC_FORBIDDEN", "SC_FORBIDDEN"));
+				} else if (name.getMethodName().endsWith("SubscriptionCheckFailed")) {
+					when(route53MethodStub.invoke())
+			        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+			        			"SubscriptionCheckFailed", "SubscriptionCheckFailed"));
+				} else if (name.getMethodName().endsWith("AuthFailure")) {
+					when(route53MethodStub.invoke())
+		        		.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+		        				"AuthFailure", "AuthFailure"));
+				} else if (name.getMethodName().endsWith("SignatureDoesNotMatch")) {
+					when(route53MethodStub.invoke())
+		        		.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+		        			"SignatureDoesNotMatch", "SignatureDoesNotMatch"));
+				} else if (name.getMethodName().endsWith("InvalidClientTokenId")) {
+					when(route53MethodStub.invoke())
+		        		.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+		        			"InvalidClientTokenId", "InvalidClientTokenId"));
+				} else if (name.getMethodName().endsWith("OptInRequired")) {
+					when(route53MethodStub.invoke())
+		        		.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+		        			"OptInRequired", "OptInRequired"));
+				} else if (name.getMethodName().endsWith("UnknownException")) {
+					when(route53MethodStub.invoke())
+		        		.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", 
+		        			"UnknownException", "UnknownException"));
+				} else {
+					when(route53MethodStub.invoke())
+		        		.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_hosted_zones.xml"));
+				}
+				PowerMockito.whenNew(Route53Method.class)
+					.withArguments(
+						eq(Route53Method.LIST_HOSTED_ZONES), 
+						eq(awsCloudStub), 
+						Mockito.anyString())
+					.thenReturn(route53MethodStub);
+			} catch (Exception e) {
+				
+			}
 		}
 		route53 = new Route53(awsCloudStub);
 	}
@@ -68,7 +129,7 @@ public class Route53Test extends AwsTestBase {
 	}
 	
 	@Test
-	public void getDnsZoneErrorNotFoundSuchHostedZoneShouldReturnCorrectResult() throws Exception {
+	public void getDnsZoneErrorNoSuchHostedZoneShouldReturnCorrectResult() throws Exception {
 		
 		String providerDnsZoneId = "Z1PA6795UKMFR9";
 
@@ -167,11 +228,55 @@ public class Route53Test extends AwsTestBase {
 	}
 	
 	@Test
+	public void listDnsZonesCrossPageShouldReturnCorrectResult() throws Exception {
+		
+		Route53Method route53MethodStub = mock(Route53Method.class);
+        when(route53MethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_hosted_zones_first_page.xml"))
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_hosted_zones_second_page.xml"));
+        PowerMockito.whenNew(Route53Method.class)
+			.withArguments(
+				eq(Route53Method.LIST_HOSTED_ZONES), 
+				eq(awsCloudStub), 
+				Mockito.anyString())
+			.thenReturn(route53MethodStub);
+		
+		assertReflectionEquals(
+				Arrays.asList(
+						createDNSZone("Z222222VVVVVVV", "example2.com.", "example2.com.", "This is my second hosted zone.", ACCOUNT_NO),
+						createDNSZone("Z2682N5HXP0BZ4", "example3.com.", "example3.com.", "This is my third hosted zone.", ACCOUNT_NO),
+						createDNSZone("Z1D633PJN98FT9", "example.com.", "example.com.", "This is my first hosted zone.", ACCOUNT_NO)), 
+				route53.listDnsZones());
+	}
+	
+	@Test
 	public void listDnsZoneStatusShouldReturnCorrectResult() throws Exception {
 		
 		Route53Method route53MethodStub = mock(Route53Method.class);
         when(route53MethodStub.invoke()).thenReturn(resource(
         		"org/dasein/cloud/aws/network/route53/list_hosted_zones.xml"));
+        PowerMockito.whenNew(Route53Method.class)
+			.withArguments(
+				eq(Route53Method.LIST_HOSTED_ZONES), 
+				eq(awsCloudStub), 
+				Mockito.anyString())
+			.thenReturn(route53MethodStub);
+        
+        assertReflectionEquals(
+        		Arrays.asList(
+        				new ResourceStatus("Z222222VVVVVVV", Boolean.TRUE),
+        				new ResourceStatus("Z2682N5HXP0BZ4", Boolean.TRUE),
+        				new ResourceStatus("Z1D633PJN98FT9", Boolean.TRUE)),
+        		route53.listDnsZoneStatus());
+	}
+	
+	@Test
+	public void listDnsZoneStatusCrossPageShouldReturnCorrectResult() throws Exception {
+		
+		Route53Method route53MethodStub = mock(Route53Method.class);
+        when(route53MethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_hosted_zones_first_page.xml"))
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_hosted_zones_second_page.xml"));
         PowerMockito.whenNew(Route53Method.class)
 			.withArguments(
 				eq(Route53Method.LIST_HOSTED_ZONES), 
@@ -222,6 +327,40 @@ public class Route53Test extends AwsTestBase {
 	}
 	
 	@Test
+	public void listDnsRecordsCrossPageShouldReturnCorrectResult() throws Exception {
+		String providerDnsZoneId = "Z2682N5HXP0BZ4";
+		
+		Route53Method getHostedZoneMethodStub = mock(Route53Method.class);
+        when(getHostedZoneMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/get_hosted_zone.xml"));
+        PowerMockito.whenNew(Route53Method.class)
+			.withArguments(
+				eq(Route53Method.GET_HOSTED_ZONE), 
+				eq(awsCloudStub), 
+				Mockito.anyString())
+			.thenReturn(getHostedZoneMethodStub);
+        
+        Route53Method listRecordSetsMethodStub = mock(Route53Method.class);
+        when(listRecordSetsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_record_sets_first_page.xml"))
+        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_record_sets_second_page.xml"));
+        PowerMockito.whenNew(Route53Method.class)
+			.withArguments(
+				eq(Route53Method.LIST_RESOURCE_RECORD_SETS), 
+				eq(awsCloudStub), 
+				Mockito.anyString())
+			.thenReturn(listRecordSetsMethodStub);
+        
+        assertReflectionEquals(
+        		Arrays.asList(
+        				createDNSRecord(providerDnsZoneId, "example1.com.", 900, DNSRecordType.A, "192.0.2.3"),
+        				createDNSRecord(providerDnsZoneId, "example2.com.", 900, DNSRecordType.SOA, "ns-2048.awsdns-64.net. hostmaster.awsdns.com. 1 7200 900 1209600 86400"),
+        				createDNSRecord(providerDnsZoneId, "example3.com.", 172800, DNSRecordType.NS, 
+        						"ns-2048.awsdns-64.com.", "ns-2049.awsdns-65.net.", "ns-2050.awsdns-66.org.", "ns-2051.awsdns-67.co.uk.")),
+        		route53.listDnsRecords(providerDnsZoneId, null, null));
+	}
+	
+	@Test
 	public void getProviderTermForRecordShouldReturnCorrectResult() {
 		assertEquals("resource", route53.getProviderTermForRecord(null));
 	}
@@ -233,154 +372,46 @@ public class Route53Test extends AwsTestBase {
 	
 	@Test
 	public void isSubscribedShouldReturnCorrectResult() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/route53/list_hosted_zones.xml"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         assertTrue(route53.isSubscribed());
 	}
 	
 	@Test
-	public void isSubscribedShouldReturnCorrectResultIfSC_UNAUTHORIZED() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(401, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "SC_UNAUTHORIZED", "SC_UNAUTHORIZED"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
+	public void isSubscribedShouldReturnCorrectResultIfUnAuthorized() throws Exception {
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test
-	public void isSubscribedShouldReturnCorrectResultIfSC_FORBIDDEN() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(403, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "SC_FORBIDDEN", "SC_FORBIDDEN"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
+	public void isSubscribedShouldReturnCorrectResultIfForbidden() throws Exception {
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test
 	public void isSubscribedShouldReturnCorrectResultIfSubscriptionCheckFailed() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "SubscriptionCheckFailed", "SubscriptionCheckFailed"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test
 	public void isSubscribedShouldReturnCorrectResultIfAuthFailure() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "AuthFailure", "AuthFailure"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test
 	public void isSubscribedShouldReturnCorrectResultIfSignatureDoesNotMatch() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "SignatureDoesNotMatch", "SignatureDoesNotMatch"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test
 	public void isSubscribedShouldReturnCorrectResultIfInvalidClientTokenId() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "InvalidClientTokenId", "InvalidClientTokenId"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test
 	public void isSubscribedShouldReturnCorrectResultIfOptInRequired() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "OptInRequired", "OptInRequired"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         assertFalse(route53.isSubscribed());
 	}
 	
 	@Test(expected = CloudException.class)
 	public void isSubscribedShouldThrowExceptionIfUnknownException() throws Exception {
-		
-		Route53Method route53MethodStub = mock(Route53Method.class);
-        
-		when(route53MethodStub.invoke())
-        	.thenThrow(EC2Exception.create(404, "410c2a4b-e435-49c9-8382-3770d80d7d4c", "UnknownException", "UnknownException"));
-        PowerMockito.whenNew(Route53Method.class)
-			.withArguments(
-				eq(Route53Method.LIST_HOSTED_ZONES), 
-				eq(awsCloudStub), 
-				Mockito.anyString())
-			.thenReturn(route53MethodStub);
-		
         route53.isSubscribed();
 	}
 	

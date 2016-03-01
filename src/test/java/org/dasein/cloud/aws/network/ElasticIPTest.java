@@ -10,6 +10,8 @@ import static org.unitils.reflectionassert.ReflectionAssert.*;
 
 import java.util.Arrays;
 import java.util.Collections;
+
+import org.apache.http.HttpStatus;
 import org.dasein.cloud.CloudException;
 import org.dasein.cloud.InternalException;
 import org.dasein.cloud.OperationNotSupportedException;
@@ -26,7 +28,9 @@ import org.dasein.cloud.network.AddressType;
 import org.dasein.cloud.network.IPVersion;
 import org.dasein.cloud.network.IpAddress;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
@@ -40,46 +44,113 @@ public class ElasticIPTest extends AwsTestBase {
 
 	private ElasticIP elasticIP;
 	
+	private static final String ASSIGN_INSTANCE_ID = "i-2574e22a";
+	
+	@Rule
+    public final TestName name = new TestName();
+	
 	@Before
 	public void setUp() {
+		
 		super.setUp();
+		
 		elasticIP = new ElasticIP(awsCloudStub);
+		
+		try {
+			if(name.getMethodName().startsWith("assignShouldPostWithCorrectRequest")) { //assign
+			
+				EC2Method describeAddressesMethodStub = mock(EC2Method.class);
+		        when(describeAddressesMethodStub.invoke())
+		        	.thenReturn(resource("org/dasein/cloud/aws/network/ipaddress/describe_addresses.xml"));
+		        PowerMockito.whenNew(EC2Method.class)
+		            .withArguments(eq(awsCloudStub), argThat(allOf(
+		            		hasEntry("Action", "DescribeAddresses"))))
+		            .thenReturn(describeAddressesMethodStub);
+		        
+				VirtualMachine virtualMachineStub = PowerMockito.mock(VirtualMachine.class);
+				EC2ComputeServices computeServicesStub = PowerMockito.mock(EC2ComputeServices.class);
+				EC2Instance vmSupportStub = PowerMockito.mock(EC2Instance.class);
+				PowerMockito.doReturn(computeServicesStub).when(awsCloudStub).getComputeServices();
+				PowerMockito.doReturn(vmSupportStub).when(computeServicesStub).getVirtualMachineSupport();
+				PowerMockito.doReturn(virtualMachineStub).when(vmSupportStub).getVirtualMachine(ASSIGN_INSTANCE_ID);
+				if (name.getMethodName().endsWith("RunningVm")) {
+					PowerMockito.doReturn(VmState.RUNNING).when(virtualMachineStub).getCurrentState();
+				} else if (name.getMethodName().endsWith("StoppedVm")) {
+					PowerMockito.doReturn(VmState.STOPPED).when(virtualMachineStub).getCurrentState();
+				} else if (name.getMethodName().endsWith("PausedVm")) {
+					PowerMockito.doReturn(VmState.PAUSED).when(virtualMachineStub).getCurrentState();
+				} else if (name.getMethodName().endsWith("SuspendedVm")) {
+					PowerMockito.doReturn(VmState.SUSPENDED).when(virtualMachineStub).getCurrentState();
+				}
+				
+		        EC2Method associateAddressSuccessMethodStub = mock(EC2Method.class);
+		        when(associateAddressSuccessMethodStub.invoke())
+			    	.thenReturn(resource("org/dasein/cloud/aws/network/ipaddress/associate_address_success.xml"));
+		        PowerMockito.whenNew(EC2Method.class)
+					.withArguments(eq(awsCloudStub), argThat(allOf(
+							hasEntry("InstanceId", ASSIGN_INSTANCE_ID), 
+							hasEntry("Action", "AssociateAddress"))))
+					.thenReturn(associateAddressSuccessMethodStub);
+			} else if (name.getMethodName().startsWith("getIpAddress")) {
+				EC2Method listIpMethodStub = mock(EC2Method.class);
+				if (name.getMethodName().endsWith("InvalidAllocationIDNotFound")) {
+					when(listIpMethodStub.invoke())
+			        	.thenThrow(EC2Exception.create(
+			        			HttpStatus.SC_METHOD_FAILURE, null, 
+			        			"InvalidAllocationID.NotFound", "InvalidAllocationID.NotFound"));
+				} else if (name.getMethodName().endsWith("InvalidAddressNotFound")) {
+					when(listIpMethodStub.invoke())
+		        		.thenThrow(EC2Exception.create(
+		        				HttpStatus.SC_METHOD_FAILURE, null, 
+		        				"InvalidAddress.NotFound", "InvalidAddress.NotFound"));
+				} else {
+					when(listIpMethodStub.invoke()).thenReturn(
+			        		resource("org/dasein/cloud/aws/network/ipaddress/describe_addresses.xml"));
+				}
+				PowerMockito.whenNew(EC2Method.class)
+	                .withArguments(eq(awsCloudStub), argThat(allOf(
+	                		hasEntry("Action", "DescribeAddresses"))))
+	                .thenReturn(listIpMethodStub);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	@Test
-	public void getIpAddressShouldReturnVpcAddress() throws Exception {
-		
+	public void getIpAddressForVpcAddressShouldReturnCorrectResult() throws Exception {
 		String ipAddressId = "eipalloc-08229861";
-		
-		EC2Method listIpMethodStub = mock(EC2Method.class);
-        when(listIpMethodStub.invoke()).thenReturn(
-        		resource("org/dasein/cloud/aws/network/ipaddress/describe_addresses.xml"));
-        PowerMockito.whenNew(EC2Method.class)
-                .withArguments(eq(awsCloudStub), argThat(allOf(
-                		hasEntry("Action", "DescribeAddresses"))))
-                .thenReturn(listIpMethodStub);
-		
         assertReflectionEquals(
         		createIpAddress(ipAddressId, "eipassoc-f0229899", AddressType.PUBLIC, "eni-ef229886", IPVersion.IPV4, "46.51.219.63", "i-64600030", true), 
         		elasticIP.getIpAddress(ipAddressId));
 	}
 	
 	@Test
-	public void getIpAddressShouldReturnIpAddress() throws Exception {
-		
+	public void getIpAddressForVpcAddressShouldReturnNullIfInvalidAllocationIDNotFound() throws Exception {
+		assertNull(elasticIP.getIpAddress("eipalloc-08229861"));
+	}
+	
+	@Test
+	public void getIpAddressForVpcAddressShouldReturnNullIfInvalidAddressNotFound() throws Exception {
+		assertNull(elasticIP.getIpAddress("eipalloc-08229861"));
+	}
+	
+	@Test
+	public void getIpAddressForIpAddressShouldReturnCorrectResult() throws Exception {
 		String ipAddressId = "46.51.219.64";
-		
-		EC2Method listIpMethodStub = mock(EC2Method.class);
-        when(listIpMethodStub.invoke()).thenReturn(
-        		resource("org/dasein/cloud/aws/network/ipaddress/describe_addresses.xml"));
-        PowerMockito.whenNew(EC2Method.class)
-                .withArguments(eq(awsCloudStub), argThat(allOf(
-                		hasEntry("Action", "DescribeAddresses"))))
-                .thenReturn(listIpMethodStub);
-		
 		assertReflectionEquals(
 				createIpAddress(ipAddressId, "eipassoc-f0229810", AddressType.PUBLIC, "eni-ef229810", IPVersion.IPV4, ipAddressId, "i-64600031", false), 
 				elasticIP.getIpAddress(ipAddressId));
+	}
+	
+	@Test
+	public void getIpAddressForIpAddressShouldReturnNullIfInvalidAllocationIDNotFound() throws Exception {
+		assertNull(elasticIP.getIpAddress("46.51.219.64"));
+	}
+	
+	@Test
+	public void getIpAddressForIpAddressShouldReturnNullIfInvalidAddressNotFound() throws Exception {
+		assertNull(elasticIP.getIpAddress("46.51.219.64"));
 	}
 	
 	@Test
@@ -163,37 +234,23 @@ public class ElasticIPTest extends AwsTestBase {
 	}
 	
 	@Test
-	public void assignShouldPostWithCorrectRequest() throws Exception {
-		
-		String addressId = "198.51.100.2";
-		String instanceId = "i-2574e22a";
-		
-		EC2Method describeAddressesMethodStub = mock(EC2Method.class);
-        when(describeAddressesMethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/ipaddress/describe_addresses.xml"));
-        PowerMockito.whenNew(EC2Method.class)
-            .withArguments(eq(awsCloudStub), argThat(allOf(
-            		hasEntry("Action", "DescribeAddresses"))))
-            .thenReturn(describeAddressesMethodStub);
-        
-		VirtualMachine virtualMachineStub = PowerMockito.mock(VirtualMachine.class);
-		EC2ComputeServices computeServicesStub = PowerMockito.mock(EC2ComputeServices.class);
-		EC2Instance vmSupportStub = PowerMockito.mock(EC2Instance.class);
-		PowerMockito.doReturn(computeServicesStub).when(awsCloudStub).getComputeServices();
-		PowerMockito.doReturn(vmSupportStub).when(computeServicesStub).getVirtualMachineSupport();
-		PowerMockito.doReturn(virtualMachineStub).when(vmSupportStub).getVirtualMachine(instanceId);
-		PowerMockito.doReturn(VmState.RUNNING).when(virtualMachineStub).getCurrentState();
-        
-        EC2Method associateAddressSuccessMethodStub = mock(EC2Method.class);
-        when(associateAddressSuccessMethodStub.invoke())
-	    	.thenReturn(resource("org/dasein/cloud/aws/network/ipaddress/associate_address_success.xml"));
-        PowerMockito.whenNew(EC2Method.class)
-			.withArguments(eq(awsCloudStub), argThat(allOf(
-					hasEntry("InstanceId", instanceId), 
-					hasEntry("Action", "AssociateAddress"))))
-			.thenReturn(associateAddressSuccessMethodStub);
-		
-		elasticIP.assign(addressId, instanceId);
+	public void assignShouldPostWithCorrectRequestForRunningVm() throws Exception {
+		elasticIP.assign("198.51.100.2", ASSIGN_INSTANCE_ID);
+	}
+	
+	@Test
+	public void assignShouldPostWithCorrectRequestForStoppedVm() throws Exception {
+		elasticIP.assign("198.51.100.2", ASSIGN_INSTANCE_ID);
+	}
+	
+	@Test
+	public void assignShouldPostWithCorrectRequestForPausedVm() throws Exception {
+		elasticIP.assign("198.51.100.2", ASSIGN_INSTANCE_ID);
+	}
+	
+	@Test
+	public void assignShouldPostWithCorrectRequestForSuspendedVm() throws Exception {
+		elasticIP.assign("198.51.100.2", ASSIGN_INSTANCE_ID);
 	}
 	
 	@Test(expected = CloudException.class)
@@ -341,6 +398,22 @@ public class ElasticIPTest extends AwsTestBase {
         			hasEntry("AssociationId", associationId),
         			hasEntry("Action", "DisassociateAddress"))))
         	.thenReturn(disassociatedAddressMethodStub);
+        
+		elasticIP.releaseFromServer(allocationId);
+	}
+	
+	@Test(expected = CloudException.class)
+	public void releaseFromServerShouldThrowExceptionIfNotAssociatedWithAnyServer() throws Exception {
+		
+		String allocationId = "eipalloc-08229861";
+		
+		EC2Method describeAddressesMethodStub = mock(EC2Method.class);
+        when(describeAddressesMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/ipaddress/describe_address_without_association.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+            .withArguments(eq(awsCloudStub), argThat(allOf(
+            		hasEntry("Action", "DescribeAddresses"))))
+            .thenReturn(describeAddressesMethodStub);
         
 		elasticIP.releaseFromServer(allocationId);
 	}

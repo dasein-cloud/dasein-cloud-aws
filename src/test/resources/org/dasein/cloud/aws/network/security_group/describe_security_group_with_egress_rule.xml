@@ -6,9 +6,10 @@
          <groupId>sg-1a2b3c4d</groupId>
          <groupName>WebServers</groupName>
          <groupDescription>Web Servers</groupDescription>
-         <vpcId>vpc-123456789</vpcId>
-         <ipPermissions>
-            <item>
+         <vpcId/>
+         <ipPermissions/>
+         <ipPermissionsEgress>
+         	<item>
                <ipProtocol>tcp</ipProtocol>
                <fromPort>80</fromPort>
                <toPort>80</toPort>
@@ -19,8 +20,7 @@
                   </item>
                </ipRanges>
             </item>
-         </ipPermissions>
-         <ipPermissionsEgress/>
+         </ipPermissionsEgress>
       </item>
    </securityGroupInfo>
 </DescribeSecurityGroupsResponse>
