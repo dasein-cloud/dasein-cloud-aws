@@ -24,7 +24,6 @@ import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.EC2Provider;
 import org.dasein.cloud.aws.compute.EC2ComputeServices;
-import org.dasein.cloud.aws.compute.EC2Exception;
 import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.network.Direction;
@@ -49,7 +48,7 @@ public class SecurityGroupTest extends AwsTestBase {
 	private SecurityGroup securityGroup;
 	
 	@Before
-	public void setUp() {
+	public void setUp() throws Exception {
 		super.setUp();
 		securityGroup = new SecurityGroup(awsCloudStub);
 	}

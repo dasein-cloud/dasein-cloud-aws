@@ -48,7 +48,7 @@ public class NetworkACLTest extends AwsTestBase {
 	private NetworkACL networkACL;
 	
 	@Before
-	public void setUp() {
+	public void setUp() throws Exception {
 		super.setUp();
 		networkACL = new NetworkACL(awsCloudStub);
 	}

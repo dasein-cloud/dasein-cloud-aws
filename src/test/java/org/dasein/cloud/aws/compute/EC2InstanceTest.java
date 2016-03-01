@@ -45,6 +45,7 @@ import org.dasein.cloud.compute.VmStatusFilterOptions;
 import org.dasein.cloud.compute.Volume;
 import org.dasein.cloud.compute.VolumeState;
 import org.json.JSONObject;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -52,10 +53,7 @@ import org.mockito.internal.util.collections.Sets;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
-import org.w3c.dom.Document;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -88,10 +86,19 @@ public class EC2InstanceTest extends AwsTestBase {
 
     private EC2Instance ec2Instance;
 
+    private TimeZone backup;
+
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
         super.setUp();
         ec2Instance = new EC2Instance(awsCloudStub);
+        backup = TimeZone.getDefault();
+        TimeZone.setDefault(TimeZone.getTimeZone("GMT"));
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        TimeZone.setDefault(backup);
     }
 
     @Test
@@ -417,9 +424,6 @@ public class EC2InstanceTest extends AwsTestBase {
         long validUntil = 1420070399000l; //"2014-12-31T23:59:59.000Z";
         float price = 0.10f;
 
-        TimeZone backup = TimeZone.getDefault();
-        TimeZone.setDefault(TimeZone.getTimeZone("GMT"));
-
         EC2Method listIpMethodStub = mock(EC2Method.class);
         when(listIpMethodStub.invoke()).thenReturn(resource("org/dasein/cloud/aws/network/describe_addresses.xml"));
         PowerMockito.whenNew(EC2Method.class)
@@ -466,8 +470,6 @@ public class EC2InstanceTest extends AwsTestBase {
         assertEquals(validFrom, spotVirtualMachineRequest.getValidFromTimestamp());
         assertEquals(validUntil, spotVirtualMachineRequest.getValidUntilTimestamp());
         assertEquals(launchGroupId, spotVirtualMachineRequest.getLaunchGroup());
-
-        TimeZone.setDefault(backup);
     }
 
     @Test

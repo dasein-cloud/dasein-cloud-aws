@@ -40,10 +40,8 @@ public class Route53Test extends AwsTestBase {
     public final TestName name = new TestName();
 	
 	@Before
-	public void setUp() {
-		
+	public void setUp() throws Exception {
 		super.setUp();
-		
 		try {
 			PowerMockito.doReturn("AIDIODR4TAW7CSEXAMPLE".getBytes()).when(providerContextStub).getAccessPublic();
 			PowerMockito.doReturn("AIDIODR4TAW7CSEXAMPLE".getBytes()).when(providerContextStub).getAccessPrivate();

@@ -694,7 +694,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
         blocks = doc.getElementsByTagName("return");
         if( blocks.getLength() > 0 ) {
             if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                throw new CloudException("Deletion of snapshot denied.");
+                throw new CloudException("Set public share of snapshot denied.");
             }
         }
     }
@@ -727,7 +727,7 @@ public class EBSSnapshot extends AbstractSnapshotSupport<AWSCloud> {
         blocks = doc.getElementsByTagName("return");
         if( blocks.getLength() > 0 ) {
             if( !blocks.item(0).getFirstChild().getNodeValue().equalsIgnoreCase("true") ) {
-                throw new CloudException("Deletion of snapshot denied.");
+                throw new CloudException("Set private share of snapshot denied.");
             }
         }
     }
