@@ -10,3 +10,7 @@
 target
 
 .DS_Store
+*.classpath
+*.project
+*.prefs
+src/main/java/org/dasein/cloud/aws/network/VPC.java

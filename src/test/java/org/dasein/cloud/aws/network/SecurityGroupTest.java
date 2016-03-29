@@ -11,7 +11,7 @@ import static org.unitils.reflectionassert.ReflectionAssert.*;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
+import java.util.List;
 
 import junit.framework.AssertionFailedError;
 
@@ -22,9 +22,7 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.AwsTestBase;
-import org.dasein.cloud.aws.compute.EC2ComputeServices;
-import org.dasein.cloud.aws.compute.EC2Exception;
-import org.dasein.cloud.aws.compute.EC2Instance;
+import org.dasein.cloud.aws.EC2Provider;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
@@ -35,16 +33,14 @@ import org.dasein.cloud.network.Permission;
 import org.dasein.cloud.network.Protocol;
 import org.dasein.cloud.network.RuleTarget;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({AWSCloud.class, EC2Instance.class, EC2ComputeServices.class, SecurityGroup.class})
+@PrepareForTest({AWSCloud.class, SecurityGroup.class})
 public class SecurityGroupTest extends AwsTestBase {
 
 	private SecurityGroup securityGroup;
@@ -81,19 +77,11 @@ public class SecurityGroupTest extends AwsTestBase {
                 		hasEntry("Action", "DescribeSecurityGroups"))))
                 .thenReturn(ec2MethodStub);
 		
-		Firewall response = securityGroup.getFirewall(securityGroupId);
-		assertEquals(REGION, response.getRegionId());
-		assertEquals("Web Servers", response.getDescription());
-		assertEquals("WebServers", response.getName());
-		assertEquals(securityGroupId, response.getProviderFirewallId());
-		assertNull(response.getProviderVlanId());
-		assertTrue(response.isActive());
-		assertTrue(response.isAvailable());
-		assertEquals(
-				Arrays.asList(
-						FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR("0.0.0.0/0"), 
-								Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), 80, 80)), 
-				response.getRules());
+        assertReflectionEquals(
+				createFirewall(securityGroupId, null, "WebServers", "Web Servers", true, true, 
+						Arrays.asList(FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR("0.0.0.0/0"), 
+						Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), 80, 80))),
+				securityGroup.getFirewall(securityGroupId));
 	}
 	
 	@Test
@@ -124,22 +112,35 @@ public class SecurityGroupTest extends AwsTestBase {
                 		hasEntry("Action", "DescribeSecurityGroups"))))
                 .thenReturn(ec2MethodStub);
 		
-        assertEquals(
+        assertReflectionEquals(
 				Arrays.asList(
 						FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR("0.0.0.0/0"), 
 								Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), 80, 80)), 
 				securityGroup.getRules(securityGroupId));
 	}
 	
-	@Ignore
 	@Test
-	public void isSubscribedShouldReturnCorrectResult() throws CloudException, InternalException {
-		EC2ComputeServices ec2ComputeServicesMock = PowerMockito.spy(new EC2ComputeServices(awsCloudStub));
-		EC2Instance ec2Instance = Mockito.mock(EC2Instance.class);
-		Mockito.doReturn(ec2Instance).when(ec2ComputeServicesMock).getVirtualMachineSupport();
-		assertTrue(securityGroup.isSubscribed());
+	public void getRulesForEucalyptusProviderShouldReturnCorrectResult() throws Exception {
+		String securityGroupName = "WebServers";
+		
+		PowerMockito.doReturn(EC2Provider.EUCALYPTUS).when(awsCloudStub).getEC2Provider();
+		
+		EC2Method ec2MethodStub = mock(EC2Method.class);
+        when(ec2MethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+                .withArguments(eq(awsCloudStub), argThat(allOf(
+                		hasEntry("GroupName.1", securityGroupName), 
+                		hasEntry("Action", "DescribeSecurityGroups"))))
+                .thenReturn(ec2MethodStub);
+		
+        assertReflectionEquals(
+				Arrays.asList(
+						FirewallRule.getInstance(null, securityGroupName, RuleTarget.getCIDR("0.0.0.0/0"), 
+								Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupName), 80, 80)), 
+				securityGroup.getRules(securityGroupName));
 	}
-	
+
 	@Test
 	public void listShouldReturnCorrectResult() throws Exception {
 		
@@ -147,39 +148,19 @@ public class SecurityGroupTest extends AwsTestBase {
         when(ec2MethodStub.invoke())
         	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"));
         PowerMockito.whenNew(EC2Method.class)
-                .withArguments(eq(awsCloudStub), argThat(allOf(hasEntry("Action", "DescribeSecurityGroups"))))
+                .withArguments(eq(awsCloudStub), argThat(allOf(
+                		hasEntry("Action", "DescribeSecurityGroups"))))
                 .thenReturn(ec2MethodStub);
 		
-		Iterator<Firewall> firewalls = securityGroup.list().iterator();
-		Firewall firewall1 = firewalls.next();
-		assertEquals(REGION, firewall1.getRegionId());
-		assertEquals("Web Servers", firewall1.getDescription());
-		assertEquals("WebServers", firewall1.getName());
-		assertEquals("sg-1a2b3c4d", firewall1.getProviderFirewallId());
-		assertNull(firewall1.getProviderVlanId());
-		assertTrue(firewall1.isActive());
-		assertTrue(firewall1.isAvailable());
-		assertEquals(
+		assertReflectionEquals(
 				Arrays.asList(
-						FirewallRule.getInstance(null, "sg-1a2b3c4d", RuleTarget.getCIDR("0.0.0.0/0"), 
-								Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal("sg-1a2b3c4d"), 80, 80)), 
-				firewall1.getRules());
-		
-		Firewall firewall2 = firewalls.next();
-		assertEquals(REGION, firewall2.getRegionId());
-		assertEquals("Group A", firewall2.getDescription());
-		assertEquals("RangedPortsBySource", firewall2.getName());
-		assertEquals("sg-2a2b3c4d", firewall2.getProviderFirewallId());
-		assertNull(firewall2.getProviderVlanId());
-		assertTrue(firewall2.isActive());
-		assertTrue(firewall2.isAvailable());
-		assertEquals(
-				Arrays.asList(
-						FirewallRule.getInstance(null, "sg-2a2b3c4d", RuleTarget.getGlobal("sg-3a2b3c4d"), 
-								Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal("sg-2a2b3c4d"), 6000, 7000)), 
-				firewall2.getRules());
-		
-		assertFalse(firewalls.hasNext());
+						createFirewall("sg-1a2b3c4d", null, "WebServers", "Web Servers", true, true, 
+								Arrays.asList(FirewallRule.getInstance(null, "sg-1a2b3c4d", RuleTarget.getCIDR("0.0.0.0/0"), 
+										Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal("sg-1a2b3c4d"), 80, 80))),
+						createFirewall("sg-2a2b3c4d", null, "RangedPortsBySource", "Group A", true, true, 
+								Arrays.asList(FirewallRule.getInstance(null, "sg-2a2b3c4d", RuleTarget.getGlobal("sg-3a2b3c4d"), 
+										Direction.INGRESS, Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal("sg-2a2b3c4d"), 6000, 7000)))),
+				securityGroup.list());
 	}
 	
 	@Test
@@ -203,34 +184,37 @@ public class SecurityGroupTest extends AwsTestBase {
 	public void authorizeIngressRuleShouldPostWithCorrectRequest() throws Exception {
 		
 		String securityGroupId = "sg-1a2b3c4d";
+		String cidr = "192.168.110.0/100";
+		int startPort = 8080;
+		int endPort = 8080;
 		
-		FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
-				Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR("192.168.110.0/100"), Protocol.TCP, null, 
-				8080, 8080, 100);
-		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_ingress.xml"));
+		EC2Method describeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
-            .withArguments(eq(awsCloudStub), argThat(allOf(
-            		hasEntry("GroupId.1", securityGroupId), 
-            		hasEntry("Action", "DescribeSecurityGroups"))))
-            .thenReturn(ec2MethodStub);
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId.1", securityGroupId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeSecurityGroupMethodStub);
+        
+        EC2Method authorizeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(authorizeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_ingress.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("GroupId", securityGroupId),
 	        		hasEntry("IpPermissions.1.IpProtocol", Protocol.TCP.name().toLowerCase()),
-	        		hasEntry("IpPermissions.1.FromPort", "8080"),
-	        		hasEntry("IpPermissions.1.ToPort", "8080"),
-	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", "192.168.110.0/100"),
+	        		hasEntry("IpPermissions.1.FromPort", String.valueOf(startPort)),
+	        		hasEntry("IpPermissions.1.ToPort", String.valueOf(endPort)),
+	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", cidr),
 	        		hasEntry("Action", "AuthorizeSecurityGroupIngress"))))
-	        .thenReturn(ec2MethodStub);
-		
+	        .thenReturn(authorizeSecurityGroupMethodStub);
+        
         assertEquals(
-        		FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR("192.168.110.0/100"), Direction.INGRESS, 
-        				Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), 8080, 8080).getProviderRuleId(),
-        		securityGroup.authorize(securityGroupId, options));
+                FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), Direction.INGRESS, 
+                		Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort).getProviderRuleId(),
+                securityGroup.authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(cidr), 
+                		Protocol.TCP, null, startPort, endPort, 100));
 	}
 	
 	@Test
@@ -242,15 +226,18 @@ public class SecurityGroupTest extends AwsTestBase {
 				Direction.EGRESS, Permission.ALLOW, null, Protocol.TCP, RuleTarget.getCIDR("202.108.110.0/100"), 
 				8080, 8080, 100);
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_vpc_security_group.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_egress.xml"));
+		EC2Method describeVpcSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeVpcSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_vpc_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
-            .withArguments(eq(awsCloudStub), argThat(allOf(
-            		hasEntry("GroupId.1", securityGroupId), 
-            		hasEntry("Action", "DescribeSecurityGroups"))))
-            .thenReturn(ec2MethodStub);
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId.1", securityGroupId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeVpcSecurityGroupMethodStub);
+        
+        EC2Method authorizeSecurityGroupEgressMethodStub = mock(EC2Method.class);
+        when(authorizeSecurityGroupEgressMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_egress.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("GroupId", securityGroupId),
@@ -259,7 +246,7 @@ public class SecurityGroupTest extends AwsTestBase {
 	        		hasEntry("IpPermissions.1.ToPort", "8080"),
 	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", "202.108.110.0/100"),
 	        		hasEntry("Action", "AuthorizeSecurityGroupEgress"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(authorizeSecurityGroupEgressMethodStub);
 		
         assertEquals(
         		FirewallRule.getInstance(null, securityGroupId, RuleTarget.getGlobal(securityGroupId), Direction.EGRESS, 
@@ -267,20 +254,76 @@ public class SecurityGroupTest extends AwsTestBase {
         		securityGroup.authorize(securityGroupId, options));
 	}
 	
+	@Test
+	public void authorizeRuleForEucalyptusProviderShouldPostWithCorrectRequest() throws Exception {
+		
+		String securityGroupId = "sg-1a2b3c4d";
+		String cidr = "192.168.110.0/100";
+		int startPort = 8080;
+		int endPort = 8080;
+		
+		PowerMockito.doReturn(EC2Provider.EUCALYPTUS).when(awsCloudStub).getEC2Provider();
+		
+		EC2Method describeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupName.1", securityGroupId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeSecurityGroupMethodStub);
+        
+        EC2Method authorizeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(authorizeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_ingress.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupName", securityGroupId),
+	        		hasEntry("IpProtocol", Protocol.TCP.name().toLowerCase()),
+	        		hasEntry("FromPort", String.valueOf(startPort)),
+	        		hasEntry("ToPort", String.valueOf(endPort)),
+	        		hasEntry("CidrIp", cidr),
+	        		hasEntry("Action", "AuthorizeSecurityGroupIngress"))))
+	        .thenReturn(authorizeSecurityGroupMethodStub);
+        
+        assertEquals(
+                FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), Direction.INGRESS, 
+                		Protocol.TCP, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort).getProviderRuleId(),
+                securityGroup.authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(cidr), 
+                		Protocol.TCP, null, startPort, endPort, 100));
+	}
+	
+	@Test(expected = OperationNotSupportedException.class)
+	public void authorizeAnyProtocolIngressRuleForNonVpcShouldThrowException() throws Exception {
+		
+		String securityGroupId = "sg-1a2b3c4d";
+		
+		EC2Method describeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId.1", securityGroupId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeSecurityGroupMethodStub);
+        
+        securityGroup.authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, 
+        		RuleTarget.getCIDR("192.168.110.0/100"), Protocol.ANY, null, 8080, 8080, 100);
+	}
+	
 	@Test(expected = OperationNotSupportedException.class)
 	public void authorizeDenyRuleShouldThrowException() throws CloudException, InternalException {
 		String securityGroupId = "sg-1a2b3c4d";
 		FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
-				Direction.INGRESS, Permission.DENY, RuleTarget.getCIDR(""), Protocol.TCP, RuleTarget.getGlobal(""), 
+				Direction.INGRESS, Permission.DENY, RuleTarget.getCIDR(securityGroupId), Protocol.TCP, RuleTarget.getGlobal(securityGroupId), 
 				8080, 8080, 100);
 		securityGroup.authorize(securityGroupId, options);
 	}
-	
+		
 	@Test(expected = CloudException.class)
 	public void authorizeShouldThrowExceptionIfFirewallIsNull() throws Exception {
 		String securityGroupId = "sg-1invalid";
-		FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
-				Direction.INGRESS, Permission.ALLOW, null, Protocol.TCP, null, 8080, 8080, 100);
+		
 		EC2Method ec2MethodStub = mock(EC2Method.class);
         when(ec2MethodStub.invoke())
         	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
@@ -289,14 +332,16 @@ public class SecurityGroupTest extends AwsTestBase {
                 		hasEntry("GroupId.1", securityGroupId), 
                 		hasEntry("Action", "DescribeSecurityGroups"))))
                 .thenReturn(ec2MethodStub);
-		securityGroup.authorize(securityGroupId, options);
+		
+        FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
+				Direction.INGRESS, Permission.ALLOW, null, Protocol.TCP, null, 8080, 8080, 100);
+        securityGroup.authorize(securityGroupId, options);
 	}
 	
 	@Test(expected=OperationNotSupportedException.class)
 	public void authorizeEgressRuleForInternetFirewallShouldThrowException() throws Exception {
 		String securityGroupId = "sg-1a2b3c4d";
-		FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
-				Direction.EGRESS, Permission.ALLOW, null, Protocol.TCP, null, 8080, 8080, 100);
+		
 		EC2Method ec2MethodStub = mock(EC2Method.class);
         when(ec2MethodStub.invoke())
         	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
@@ -305,111 +350,157 @@ public class SecurityGroupTest extends AwsTestBase {
                 		hasEntry("GroupId.1", securityGroupId), 
                 		hasEntry("Action", "DescribeSecurityGroups"))))
                 .thenReturn(ec2MethodStub);
+        
+        FirewallRuleCreateOptions options = FirewallRuleCreateOptions.getInstance(
+				Direction.EGRESS, Permission.ALLOW, null, Protocol.TCP, null, 8080, 8080, 100);
 		securityGroup.authorize(securityGroupId, options);
 	}
 	
 	@Test
+	public void authorizeAnyProtocolIngressRuleForInternetFirewallShouldPostWithCorrectRequest() throws Exception {
+		String securityGroupId = "sg-1a2b3c4d";
+		String cidr = "0.0.0.0/0";
+		int startPort = 80;
+		int endPort = 80;
+		
+		EC2Method describeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_vpc_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId.1", securityGroupId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeSecurityGroupMethodStub);
+        
+        EC2Method authorizeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(authorizeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_ingress.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId", securityGroupId),
+	        		hasEntry("IpPermissions.1.IpProtocol", "-1"),
+	        		hasEntry("IpPermissions.1.FromPort", String.valueOf(startPort)),
+	        		hasEntry("IpPermissions.1.ToPort", String.valueOf(endPort)),
+	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", cidr),
+	        		hasEntry("Action", "AuthorizeSecurityGroupIngress"))))
+	        .thenReturn(authorizeSecurityGroupMethodStub);
+        
+        assertEquals(
+                FirewallRule.getInstance(null, securityGroupId, RuleTarget.getCIDR(cidr), Direction.INGRESS, 
+                		Protocol.ANY, Permission.ALLOW, RuleTarget.getGlobal(securityGroupId), startPort, endPort).getProviderRuleId(),
+                securityGroup.authorize(securityGroupId, Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR(cidr), 
+                		Protocol.ANY, null, startPort, endPort, 100));
+	}
+	
+	@Test
 	public void revokeShouldDeleteWithCorrectRequest() throws Exception {
+		
+		String firewallId = "sg-1a2b3c4d";
 		String ruleId = FirewallRule.getRuleId(
-				"sg-1a2b3c4d", RuleTarget.getCIDR("0.0.0.0/0"), Direction.INGRESS, Protocol.TCP, Permission.ALLOW, 
-				RuleTarget.getGlobal("sg-1a2b3c4d"), 80, 80);
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
+				firewallId, RuleTarget.getCIDR("0.0.0.0/0"), Direction.INGRESS, Protocol.TCP, Permission.ALLOW, 
+				RuleTarget.getGlobal(firewallId), 80, 80);
+		
+		EC2Method describeSecurityGroupsMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupsMethodStub.invoke())
+        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	    	.withArguments(eq(awsCloudStub), argThat(allOf(
+	    			hasEntry("Action", "DescribeSecurityGroups"))))
+	    	.thenReturn(describeSecurityGroupsMethodStub);
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId.1", firewallId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeSecurityGroupsMethodStub);
+        
+        EC2Method revokeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(revokeSecurityGroupMethodStub.invoke())
         		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/revoke_security_group_rule.xml"));
         PowerMockito.whenNew(EC2Method.class)
-            	.withArguments(eq(awsCloudStub), argThat(allOf(
-            			hasEntry("Action", "DescribeSecurityGroups"))))
-            	.thenReturn(ec2MethodStub);
-        PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
-	        		hasEntry("GroupId.1", "sg-1a2b3c4d"), 
-	        		hasEntry("Action", "DescribeSecurityGroups"))))
-	        .thenReturn(ec2MethodStub);
-        PowerMockito.whenNew(EC2Method.class)
-	        .withArguments(eq(awsCloudStub), argThat(allOf(
-	        		hasEntry("GroupId", "sg-1a2b3c4d"), 
+	        		hasEntry("GroupId", firewallId), 
 	        		hasEntry("IpPermissions.1.IpProtocol", "tcp"),
 	        		hasEntry("IpPermissions.1.FromPort", "80"),
 	        		hasEntry("IpPermissions.1.ToPort", "80"),
 	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", "0.0.0.0/0"),
 	        		hasEntry("Action", "RevokeSecurityGroupIngress"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(revokeSecurityGroupMethodStub);
+        
+		securityGroup.revoke(ruleId);
+	}
+	
+	@Test(expected = OperationNotSupportedException.class)
+	public void revokeShouldThrowExceptionFroEgressEc2Classic() throws Exception {
+		String firewallId = "sg-1a2b3c4d";
+		String ruleId = FirewallRule.getRuleId(
+				firewallId, RuleTarget.getGlobal(firewallId), Direction.EGRESS, Protocol.TCP, Permission.ALLOW, 
+				RuleTarget.getCIDR("0.0.0.0/0"), 80, 80);
+		
+		EC2Method describeSecurityGroupsMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupsMethodStub.invoke())
+        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group_with_egress_rule.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	    	.withArguments(eq(awsCloudStub), argThat(allOf(
+	    			hasEntry("Action", "DescribeSecurityGroups"))))
+	    	.thenReturn(describeSecurityGroupsMethodStub);
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupId.1", firewallId), 
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(describeSecurityGroupsMethodStub);
+        
 		securityGroup.revoke(ruleId);
 	}
 	
 	@Test(expected = AWSResourceNotFoundException.class)
 	public void revokeShouldThrowExceptionIfNoSuchFirewall() throws Exception {
+		
+		String firewallId = "sg-1a2b3c4d";
 		String ruleId = FirewallRule.getRuleId(
-				"sg-1a2b3c4d", RuleTarget.getCIDR("0.0.0.0/0"), Direction.INGRESS, Protocol.TCP, Permission.ALLOW, 
-				RuleTarget.getGlobal("sg-1a2b3c4d"), 80, 80);
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
+				firewallId, RuleTarget.getCIDR("0.0.0.0/0"), Direction.INGRESS, Protocol.TCP, Permission.ALLOW, 
+				RuleTarget.getGlobal(firewallId), 80, 80);
+		
+		EC2Method describeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupMethodStub.invoke())
+        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	    	.withArguments(eq(awsCloudStub), argThat(allOf(
+	    			hasEntry("Action", "DescribeSecurityGroups"))))
+	    	.thenReturn(describeSecurityGroupMethodStub);
+        
+        EC2Method describeEmptyGroupMethodStub = mock(EC2Method.class);
+        when(describeEmptyGroupMethodStub.invoke())
+        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"))
         		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_empty_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
-            	.withArguments(eq(awsCloudStub), argThat(allOf(
-            			hasEntry("Action", "DescribeSecurityGroups"))))
-            	.thenReturn(ec2MethodStub);
-        PowerMockito.whenNew(EC2Method.class)
 		        .withArguments(eq(awsCloudStub), argThat(allOf(
-		        		hasEntry("GroupId.1", "sg-1a2b3c4d"), 
+		        		hasEntry("GroupId.1", firewallId), 
 		        		hasEntry("Action", "DescribeSecurityGroups"))))
-		        .thenReturn(ec2MethodStub);
-		securityGroup.revoke(ruleId);
-	}
-	
-	@Test(expected = CloudException.class)
-	public void revokeShouldThrowExceptionIfFailed() throws Exception {
-		String ruleId = FirewallRule.getRuleId(
-				"sg-1a2b3c4d", RuleTarget.getCIDR("0.0.0.0/0"), Direction.INGRESS, Protocol.TCP, Permission.ALLOW, 
-				RuleTarget.getGlobal("sg-1a2b3c4d"), 80, 80);
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/revoke_security_group_rule_failed.xml"));
-        PowerMockito.whenNew(EC2Method.class)
-            	.withArguments(eq(awsCloudStub), argThat(allOf(
-            			hasEntry("Action", "DescribeSecurityGroups"))))
-            	.thenReturn(ec2MethodStub);
-        PowerMockito.whenNew(EC2Method.class)
-	        .withArguments(eq(awsCloudStub), argThat(allOf(
-	        		hasEntry("GroupId.1", "sg-1a2b3c4d"), 
-	        		hasEntry("Action", "DescribeSecurityGroups"))))
-	        .thenReturn(ec2MethodStub);
-        PowerMockito.whenNew(EC2Method.class)
-	        .withArguments(eq(awsCloudStub), argThat(allOf(
-	        		hasEntry("GroupId", "sg-1a2b3c4d"), 
-	        		hasEntry("IpPermissions.1.IpProtocol", "tcp"),
-	        		hasEntry("IpPermissions.1.FromPort", "80"),
-	        		hasEntry("IpPermissions.1.ToPort", "80"),
-	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", "0.0.0.0/0"),
-	        		hasEntry("Action", "RevokeSecurityGroupIngress"))))
-	        .thenReturn(ec2MethodStub);
+		        .thenReturn(describeEmptyGroupMethodStub);
+        
 		securityGroup.revoke(ruleId);
 	}
 
 	@Test
 	public void createFirewallWithoutRulesShouldPostWithCorrectRequest() throws Exception {
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/create_security_group.xml"));
+		EC2Method describeSecurityGroupsMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"));
         PowerMockito.whenNew(EC2Method.class)
-            .withArguments(eq(awsCloudStub), argThat(allOf(
-            		hasEntry("GroupName", "WebServerSG"), 
-            		hasEntry("GroupDescription", "Web Servers"),
-            		hasEntry("Action", "CreateSecurityGroup"))))
-            .thenReturn(ec2MethodStub);
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupName", "WebServerSG"), 
+	        		hasEntry("GroupDescription", "Web Servers"),
+	        		hasEntry("Action", "CreateSecurityGroup"))))
+	        .thenReturn(describeSecurityGroupsMethodStub);
+        
+        EC2Method createSecurityGroupMethodStub = mock(EC2Method.class);
+        when(createSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/create_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("Action", "DescribeSecurityGroups"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(createSecurityGroupMethodStub);
 		
         FirewallCreateOptions options = FirewallCreateOptions.getInstance(
 				"WebServerSG", "Web Servers");
@@ -417,29 +508,66 @@ public class SecurityGroupTest extends AwsTestBase {
 	}
 	
 	@Test
+	public void createEucalyptusProviderFirewallWithoutRulesShouldPostWithCorrectRequest() throws Exception {
+		
+		PowerMockito.doReturn(EC2Provider.EUCALYPTUS).when(awsCloudStub).getEC2Provider();
+		
+		EC2Method describeSecurityGroupsMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupName", "WebServerSG"), 
+	        		hasEntry("GroupDescription", "Web Servers"),
+	        		hasEntry("Action", "CreateSecurityGroup"))))
+	        .thenReturn(describeSecurityGroupsMethodStub);
+        
+        EC2Method createSecurityGroupMethodStub = mock(EC2Method.class);
+        when(createSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/create_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+	        .withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("Action", "DescribeSecurityGroups"))))
+	        .thenReturn(createSecurityGroupMethodStub);
+		
+        FirewallCreateOptions options = FirewallCreateOptions.getInstance(
+				"WebServerSG", "Web Servers");
+		assertEquals("WebServerSG", securityGroup.create(options));
+	}
+	
+	@Test
 	public void createFirewallWithRulesShouldPostWithCorrectRequest() throws Exception {
 		
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/create_security_group.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"))
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_ingress.xml"));
+		EC2Method describeSecurityGroupsMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+        	.withArguments(eq(awsCloudStub), argThat(allOf(
+        		hasEntry("Action", "DescribeSecurityGroups"))))
+        	.thenReturn(describeSecurityGroupsMethodStub);
+        		
+        EC2Method createSecurityGroupMethodStub = mock(EC2Method.class);
+        when(createSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/create_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
             		hasEntry("GroupName", "WebServerSG"), 
             		hasEntry("GroupDescription", "Web Servers"),
             		hasEntry("Action", "CreateSecurityGroup"))))
-            .thenReturn(ec2MethodStub);
-        PowerMockito.whenNew(EC2Method.class)
-	        .withArguments(eq(awsCloudStub), argThat(allOf(
-	        		hasEntry("Action", "DescribeSecurityGroups"))))
-	        .thenReturn(ec2MethodStub);
+            .thenReturn(createSecurityGroupMethodStub);
+        
+        EC2Method describeSecurityGroupMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("GroupId.1", "sg-1a2b3c4d"), 
 	        		hasEntry("Action", "DescribeSecurityGroups"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(describeSecurityGroupMethodStub);
+        
+        EC2Method authorizeSecurityGroupIngressMethodStub = mock(EC2Method.class);
+        when(authorizeSecurityGroupIngressMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/authorize_security_group_ingress.xml"));
 	    PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("GroupId", "sg-1a2b3c4d"),
@@ -448,7 +576,7 @@ public class SecurityGroupTest extends AwsTestBase {
 	        		hasEntry("IpPermissions.1.ToPort", "80"),
 	        		hasEntry("IpPermissions.1.IpRanges.1.CidrIp", "192.0.2.0/24"),
 	        		hasEntry("Action", "AuthorizeSecurityGroupIngress"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(authorizeSecurityGroupIngressMethodStub);
 		
 		FirewallRuleCreateOptions ruleOptions = FirewallRuleCreateOptions.getInstance(
 				Direction.INGRESS, Permission.ALLOW, RuleTarget.getCIDR("192.0.2.0/24"), Protocol.TCP, null, 80, 80, 10);
@@ -459,9 +587,9 @@ public class SecurityGroupTest extends AwsTestBase {
 	
 	@Test
 	public void createVpcFirewallShouldPostWithCorrectRequest() throws Exception {
-		EC2Method ec2MethodStub = mock(EC2Method.class);
-        when(ec2MethodStub.invoke())
-        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"))
+		
+		EC2Method createSecurityGroupMethodStub = mock(EC2Method.class);
+        when(createSecurityGroupMethodStub.invoke())
         	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/create_security_group.xml"));
         PowerMockito.whenNew(EC2Method.class)
             .withArguments(eq(awsCloudStub), argThat(allOf(
@@ -469,11 +597,15 @@ public class SecurityGroupTest extends AwsTestBase {
             		hasEntry("GroupDescription", "Web Servers"),
             		hasEntry("VpcId", "vpc-3325caf2"),
             		hasEntry("Action", "CreateSecurityGroup"))))
-            .thenReturn(ec2MethodStub);
+            .thenReturn(createSecurityGroupMethodStub);
+        
+        EC2Method describeSecurityGroupsMethodStub = mock(EC2Method.class);
+        when(describeSecurityGroupsMethodStub.invoke())
+        	.thenReturn(resource("org/dasein/cloud/aws/network/security_group/describe_security_groups.xml"));
         PowerMockito.whenNew(EC2Method.class)
 	        .withArguments(eq(awsCloudStub), argThat(allOf(
 	        		hasEntry("Action", "DescribeSecurityGroups"))))
-	        .thenReturn(ec2MethodStub);
+	        .thenReturn(describeSecurityGroupsMethodStub);
 		
         FirewallCreateOptions options = FirewallCreateOptions.getInstance(
         		"vpc-3325caf2", "WebServerSG", "Web Servers");
@@ -493,6 +625,24 @@ public class SecurityGroupTest extends AwsTestBase {
 		securityGroup.delete("sg-1a2b3c4d");
 	}
 	
+	@Test
+	public void deleteForEucalyptusProviderShouldDeleteWithCorrectRequest() throws Exception {
+		String firewallName = "WebServers";
+		
+		PowerMockito.doReturn(EC2Provider.EUCALYPTUS).when(awsCloudStub).getEC2Provider();
+		
+		EC2Method ec2MethodStub = mock(EC2Method.class);
+        when(ec2MethodStub.invoke())
+        		.thenReturn(resource("org/dasein/cloud/aws/network/security_group/delete_security_group.xml"));
+        PowerMockito.whenNew(EC2Method.class)
+        		.withArguments(eq(awsCloudStub), argThat(allOf(
+	        		hasEntry("GroupName", firewallName),
+	        		hasEntry("Action", "DeleteSecurityGroup"))))
+        		.thenReturn(ec2MethodStub);
+        
+		securityGroup.delete(firewallName);
+	}
+	
 	@Test(expected = CloudException.class)
 	public void deleteShouldThrowExceptionIfFailed() throws Exception {
 		EC2Method ec2MethodStub = mock(EC2Method.class);
@@ -504,5 +654,19 @@ public class SecurityGroupTest extends AwsTestBase {
         		hasEntry("Action", "DeleteSecurityGroup"))))
         	.thenReturn(ec2MethodStub);
 		securityGroup.delete("sg-1a2b3c4d");
+	}
+	
+	private Firewall createFirewall(String providerFirewallId, String providerVlanId, String name, 
+			String description, boolean active, boolean available, List<FirewallRule> rules) {
+		Firewall response = new Firewall();
+		response.setProviderFirewallId(providerFirewallId);
+		response.getProviderVlanId();
+		response.setName(name);
+		response.setDescription(description);
+		response.setActive(active);
+		response.setAvailable(available);
+		response.setRules(rules);
+		response.setRegionId(REGION);
+		return response;
 	}
 }

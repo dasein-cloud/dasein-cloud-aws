@@ -6,7 +6,7 @@
          <groupId>sg-1a2b3c4d</groupId>
          <groupName>WebServers</groupName>
          <groupDescription>Web Servers</groupDescription>
-         <vpcId>vpc-123456789</vpcId>
+         <vpcId>vpc-11ad4878</vpcId>
          <ipPermissions>
             <item>
                <ipProtocol>tcp</ipProtocol>
@@ -22,5 +22,5 @@
          </ipPermissions>
          <ipPermissionsEgress/>
       </item>
-   </securityGroupInfo>
-</DescribeSecurityGroupsResponse>
+  </securityGroupInfo>
+  </DescribeSecurityGroupsResponse>
