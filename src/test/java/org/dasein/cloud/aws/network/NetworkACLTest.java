@@ -18,9 +18,6 @@ import org.dasein.cloud.InternalException;
 import org.dasein.cloud.Tag;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
-import org.dasein.cloud.aws.compute.EC2ComputeServices;
-import org.dasein.cloud.aws.compute.EC2Exception;
-import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
@@ -30,7 +27,6 @@ import org.dasein.cloud.network.FirewallRuleCreateOptions;
 import org.dasein.cloud.network.Permission;
 import org.dasein.cloud.network.Protocol;
 import org.dasein.cloud.network.RuleTarget;
-import org.dasein.cloud.network.VLANSupport;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +38,7 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import static org.unitils.reflectionassert.ReflectionAssert.*;
 
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({AWSCloud.class, EC2Instance.class, EC2ComputeServices.class, NetworkACL.class, VPC.class, VLANSupport.class})
+@PrepareForTest({AWSCloud.class, NetworkACL.class})
 public class NetworkACLTest extends AwsTestBase {
 
 	private NetworkACL networkACL;

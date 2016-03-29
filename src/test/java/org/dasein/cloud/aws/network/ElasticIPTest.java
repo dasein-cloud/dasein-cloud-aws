@@ -39,7 +39,7 @@ import org.powermock.modules.junit4.PowerMockRunner;
 import static org.junit.Assert.*;
 
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({AWSCloud.class, EC2Instance.class, ElasticIP.class})
+@PrepareForTest({AWSCloud.class, ElasticIP.class})
 public class ElasticIPTest extends AwsTestBase {
 
 	private ElasticIP elasticIP;

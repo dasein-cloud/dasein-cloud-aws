@@ -13,7 +13,6 @@ import org.dasein.cloud.ResourceStatus;
 import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.compute.EC2Exception;
-import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.network.DNSRecord;
 import org.dasein.cloud.network.DNSRecordType;
 import org.dasein.cloud.network.DNSZone;
@@ -31,7 +30,7 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({AWSCloud.class, EC2Instance.class, Route53.class})
+@PrepareForTest({AWSCloud.class, Route53.class})
 public class Route53Test extends AwsTestBase {
 
 	private Route53 route53;

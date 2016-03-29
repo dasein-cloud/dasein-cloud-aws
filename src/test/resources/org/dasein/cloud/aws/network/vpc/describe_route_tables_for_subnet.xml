@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DescribeRouteTablesResponse>
+	<routeTableSet>
+		<item>
+			<routeTableId>rtb-e4ad488d</routeTableId>
+			<vpcId>vpc-11ad4878</vpcId>
+			<routeSet>
+				<item>
+					<destinationCidrBlock>10.0.0.0/22</destinationCidrBlock>
+					<gatewayId>local</gatewayId>
+					<state>active</state>
+					<origin>CreateRouteTable</origin>
+				</item>
+				<item>
+					<destinationCidrBlock>0.0.0.0/0</destinationCidrBlock>
+					<gatewayId>igw-eaad4883</gatewayId>
+					<state>active</state>
+				</item>
+			</routeSet>
+			<associationSet>
+				<item>
+					<routeTableAssociationId>rtbassoc-faad4893</routeTableAssociationId>
+					<routeTableId>rtb-e4ad488d</routeTableId>
+					<subnetId>subnet-15ad487c</subnetId>
+				</item>
+			</associationSet>
+			<tagSet />
+		</item>
+	</routeTableSet>
+</DescribeRouteTablesResponse>

@@ -23,8 +23,6 @@ import org.dasein.cloud.aws.AWSCloud;
 import org.dasein.cloud.aws.AWSResourceNotFoundException;
 import org.dasein.cloud.aws.AwsTestBase;
 import org.dasein.cloud.aws.EC2Provider;
-import org.dasein.cloud.aws.compute.EC2ComputeServices;
-import org.dasein.cloud.aws.compute.EC2Instance;
 import org.dasein.cloud.aws.compute.EC2Method;
 import org.dasein.cloud.network.Direction;
 import org.dasein.cloud.network.Firewall;
@@ -42,7 +40,7 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 @RunWith(PowerMockRunner.class)
-@PrepareForTest({AWSCloud.class, EC2Instance.class, EC2ComputeServices.class, SecurityGroup.class})
+@PrepareForTest({AWSCloud.class, SecurityGroup.class})
 public class SecurityGroupTest extends AwsTestBase {
 
 	private SecurityGroup securityGroup;

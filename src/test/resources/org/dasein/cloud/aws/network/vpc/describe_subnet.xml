@@ -1,0 +1,16 @@
+<DescribeSubnetsResponse xmlns="http://ec2.amazonaws.com/doc/2015-10-01/">
+  <requestId>7a62c49f-347e-4fc4-9331-6e8eEXAMPLE</requestId>
+  <subnetSet>
+    <item>
+      <subnetId>subnet-9d4a7b6c</subnetId>
+      <state>available</state>
+      <vpcId>vpc-1a2b3c4d</vpcId>
+      <cidrBlock>10.0.1.0/24</cidrBlock>
+      <availableIpAddressCount>251</availableIpAddressCount>
+      <availabilityZone>us-east-1a</availabilityZone>
+      <defaultForAz>false</defaultForAz>
+      <mapPublicIpOnLaunch>false</mapPublicIpOnLaunch>
+      <tagSet/>
+    </item>
+  </subnetSet>
+</DescribeSubnetsResponse>
