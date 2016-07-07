@@ -415,7 +415,7 @@ public class EC2Instance extends AbstractVMSupport<AWSCloud> {
     }
 
     private @Nonnull String getCloudWatchUrl( @Nonnull ProviderContext ctx ) {
-        return ( "https://monitoring." + ctx.getRegionId() + ".amazonaws.com" );
+        return ( "https://monitoring." + ctx.getRegionId() + AWSCloud.getRegionSuffix(ctx.getRegionId()) );
     }
 
     /**

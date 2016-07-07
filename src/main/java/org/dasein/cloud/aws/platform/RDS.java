@@ -899,7 +899,8 @@ public class RDS extends AbstractRelationalDatabaseSupport<AWSCloud> {
     
     private String getRDSUrl() throws InternalException, CloudException {
         //noinspection ConstantConditions
-        return ("https://rds." + getProvider().getContext().getRegionId() + ".amazonaws.com");
+        return ("https://rds." + getProvider().getContext().getRegionId()
+                + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId()));
     }
     
     private Iterable<String> getSecurityGroups(String databaseId) throws CloudException, InternalException {

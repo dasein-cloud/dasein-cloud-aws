@@ -403,10 +403,11 @@ public class CloudFront implements CDNSupport {
 		StringBuilder xml = new StringBuilder();
 	
 		xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-		xml.append("<DistributionConfig xmlns=\"http://cloudfront.amazonaws.com/doc/2009-04-02/\">\r\n");
+		xml.append("<DistributionConfig xmlns=\"http://cloudfront"
+                + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) + "/doc/2009-04-02/\">\r\n");
 		xml.append("<Origin>");
 		xml.append(toXml(bucket));
-		xml.append(".s3.amazonaws.com");
+		xml.append(".s3" + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()));
 		xml.append("</Origin>\r\n");
 		xml.append("<CallerReference>");
 		xml.append(callerReference == null ? String.valueOf(System.currentTimeMillis()) : callerReference);
