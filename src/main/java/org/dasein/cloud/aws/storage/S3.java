@@ -176,7 +176,7 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
             tags.add(new Tag("Name", bucketName));
             updateTags( 1, bucketName, S3Action.PUT_BUCKET_TAG, tags.toArray(new Tag[tags.size()]));
 
-            return Blob.getInstance(regionId, "http://" + bucketName + ".s3.amazonaws.com", bucketName, System.currentTimeMillis());
+            return Blob.getInstance(regionId, "http://" + bucketName + ".s3" + AWSCloud.getRegionSuffix(regionId), bucketName, System.currentTimeMillis());
         }
         finally {
             APITrace.end();
@@ -522,7 +522,8 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
             String data = "GET\n\n\n" + expiresEpochInSeconds + "\n/" + bucket + "/" + object;
             byte[] rawHmac = mac.doFinal(data.getBytes());
             String signature = URLEncoder.encode(DatatypeConverter.printBase64Binary(rawHmac), "UTF-8");
-            signedUrl = "https://" + bucket + ".s3.amazonaws.com/" + object + "?AWSAccessKeyId=" +
+            signedUrl = "https://" + bucket + ".s3" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId())
+                + "/" + object + "?AWSAccessKeyId=" +
                     new String(getProvider().getAccessKey()[0], "UTF-8") + "&Signature=" + signature + "&Expires=" + expiresEpochInSeconds;
         }
         catch( NullPointerException e ) {
@@ -586,9 +587,10 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
 
     private @Nonnull String getLocation( @Nonnull String bucketName, @Nullable String objectName ) {
         if( objectName == null ) {
-            return ( "http://" + bucketName + ".s3.amazonaws.com" );
+            return ( "http://" + bucketName + ".s3" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId()));
         }
-        return ( "http://" + bucketName + ".s3.amazonaws.com/" + objectName );
+        return ( "http://" + bucketName + ".s3" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId())
+        + "/" + objectName );
     }
 
     @Override
@@ -800,7 +802,8 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                                     if( n.hasChildNodes() ) {
                                         String uri = n.getFirstChild().getNodeValue();
 
-                                        if( uri.equals("http://acs.amazonaws.com/groups/global/AllUsers") ) {
+                                        if( uri.equals("http://acs" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId()) +
+                                                "/groups/global/AllUsers") ) {
                                             isAll = true;
                                             break;
                                         }
@@ -1139,7 +1142,8 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
             NodeList blocks;
 
             blocks = current.getDocumentElement().getChildNodes();
-            xml.append("<AccessControlPolicy xmlns=\"http://s3.amazonaws.com/doc/2006-03-01/\">");
+            xml.append("<AccessControlPolicy xmlns=\"http://s3" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId())
+                    + "/doc/2006-03-01/\">");
             for( int i = 0; i < blocks.getLength(); i++ ) {
                 Node n = blocks.item(i);
 
@@ -1194,7 +1198,9 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                                         if( item.hasChildNodes() ) {
                                             String val = item.getFirstChild().getNodeValue();
 
-                                            if( type.equals("Group") && item.getNodeName().equals("URI") && val.equals("http://acs.amazonaws.com/groups/global/AllUsers") ) {
+                                            if( type.equals("Group") && item.getNodeName().equals("URI")
+                                                    && val.equals("http://acs" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId())
+                                                    + "/groups/global/AllUsers") ) {
                                                 found = true;
                                                 isAll = true;
                                             }
@@ -1233,7 +1239,8 @@ public class S3 extends AbstractBlobStoreSupport<AWSCloud> {
                     if( !found ) {
                         xml.append("<Grant>");
                         xml.append("<Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"Group\">");
-                        xml.append("<URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>");
+                        xml.append("<URI>http://acs" + AWSCloud.getRegionSuffix(getProvider().getContext().getRegionId()) +
+                                "/groups/global/AllUsers</URI>");
                         xml.append("</Grantee>");
                         xml.append("<Permission>READ</Permission>");
                         xml.append("</Grant>");

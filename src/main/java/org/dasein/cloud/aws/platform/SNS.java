@@ -208,7 +208,8 @@ public class SNS implements PushNotificationSupport {
     }
 
     public String getSNSUrl() throws InternalException, CloudException {
-        return ("https://sns." + provider.getContext().getRegionId() + ".amazonaws.com");
+        return ("https://sns." + provider.getContext().getRegionId()
+                + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()));
     }
     
     @Override

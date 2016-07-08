@@ -510,7 +510,8 @@ public class CloudWatch extends AbstractMonitoringSupport {
      * @return the cloudwatch endpoint url
      */
     private String getCloudWatchUrl() {
-        return ( "https://monitoring." + provider.getContext().getRegionId() + ".amazonaws.com" );
+        return ( "https://monitoring." + provider.getContext().getRegionId()
+                + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) );
     }
 
     @Override

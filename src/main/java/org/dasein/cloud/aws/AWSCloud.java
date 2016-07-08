@@ -560,6 +560,14 @@ public class AWSCloud extends AbstractCloud {
         }
     }
 
+    public static @Nonnull String getRegionSuffix( @Nullable String regionId ) {
+        if (regionId == null || !regionId.startsWith("cn")) {
+            return ".amazonaws.com";
+        } else {
+            return ".amazonaws.com.cn";
+        }
+    }
+
     public @Nullable String getEc2Url( @Nullable String regionId ) {
         ProviderContext ctx = getContext();
         String url;
@@ -569,11 +577,7 @@ public class AWSCloud extends AbstractCloud {
         }
         if( getEC2Provider().isAWS() ) {
 
-            url = ( ctx == null ? null : ctx.getCloud().getEndpoint() );
-            if( url != null && url.endsWith("amazonaws.com") ) {
-                return "https://ec2." + regionId + ".amazonaws.com";
-            }
-            return "https://ec2." + regionId + ".amazonaws.com";
+            return "https://ec2." + regionId + getRegionSuffix(regionId);
         }
         else if( !getEC2Provider().isEucalyptus() ) {
             url = ( ctx == null ? null : ctx.getCloud().getEndpoint() );
@@ -612,7 +616,7 @@ public class AWSCloud extends AbstractCloud {
     public String getGlacierUrl() throws InternalException, CloudException {
         ProviderContext ctx = getContext();
         String regionId = ctx.getRegionId();
-        return "https://glacier." + regionId + ".amazonaws.com/-/";
+        return "https://glacier." + regionId + getRegionSuffix(regionId) + "/-/";
     }
 
     public String getAutoScaleVersion() {
@@ -1020,10 +1024,13 @@ public class AWSCloud extends AbstractCloud {
             host = host.substring(0, host.indexOf('/', 1));
         }
         if( !IAMMethod.SERVICE_ID.equalsIgnoreCase(serviceId) ) {
-            String[] urlParts = host.split("\\."); // everywhere except s3 and iam this is: service.region.amazonaws.com
-            regionId = urlParts[urlParts.length-3];
-            if( regionId.startsWith("s3-") ) {
-                regionId = regionId.substring(3);
+            String[] urlParts = host.split("\\.");
+            // everywhere except s3 and iam this is: service.region.amazonaws.com or service.region.amazonaws.com.cn
+            if( urlParts.length > 2 ) {
+                regionId = urlParts[1];
+                if (regionId.startsWith("s3-")) {
+                    regionId = regionId.substring(3);
+                }
             }
         }
         String amzDate = extractV4Date(headers);
