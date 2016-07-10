@@ -607,10 +607,10 @@ public class EC2Method {
         }
         else {
             if( serviceId.equalsIgnoreCase(IAMMethod.SERVICE_ID) ) {
-                this.url = "https://" + serviceId + ".amazonaws.com";
+                this.url = "https://" + serviceId + AWSCloud.getRegionSuffix(regionIdOverride);
             }
             else {
-                this.url = "https://" + serviceId + "." + regionIdOverride + ".amazonaws.com";
+                this.url = "https://" + serviceId + "." + regionIdOverride + AWSCloud.getRegionSuffix(regionIdOverride);
 
             }
         }

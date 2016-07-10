@@ -238,20 +238,20 @@ public class S3Method {
                         if (regionId != null && !regionId.isEmpty() && !"us-east-1".equals(regionId)) {
                             url.append(".s3-");
                             url.append(regionId);
-                            url.append(".amazonaws.com/");
+                            url.append(AWSCloud.getRegionSuffix(regionId) + "/");
                         }
                         else {
-                            url.append(".s3.amazonaws.com/");
+                            url.append(".s3" + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) + "/");
                         }
                     }
                     else {
                         if (regionId != null && !regionId.isEmpty() && !"us-east-1".equals(regionId)) {
                             url.append("s3-");
                             url.append(regionId);
-                            url.append(".amazonaws.com/");
+                            url.append(AWSCloud.getRegionSuffix(regionId) + "/");
                         }
                         else {
-                            url.append("s3.amazonaws.com/");
+                            url.append("s3" + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) + "/");
                         }
                     }
                     if ( bucket != null && !validDomainName) {

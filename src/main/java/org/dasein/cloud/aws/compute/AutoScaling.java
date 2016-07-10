@@ -409,7 +409,7 @@ public class AutoScaling extends AbstractAutoScalingSupport<AWSCloud> {
         if( ctx == null ) {
             throw new CloudException("No context has been set for this request");
         }
-        return "https://autoscaling." + ctx.getRegionId() + ".amazonaws.com";
+        return "https://autoscaling." + ctx.getRegionId() + AWSCloud.getRegionSuffix(ctx.getRegionId());
     }
 
     @Override

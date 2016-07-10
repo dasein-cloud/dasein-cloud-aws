@@ -294,7 +294,7 @@ public class SimpleDB implements KeyValueDatabaseSupport {
         if( provider.getContext().getRegionId() == null || provider.getContext().getRegionId().equals("us-east-1") ) {
             return ("https://sdb.amazonaws.com");            
         }
-        return ("https://sdb." + provider.getContext().getRegionId() + ".amazonaws.com");
+        return ("https://sdb." + provider.getContext().getRegionId() + AWSCloud.getRegionSuffix(provider.getContext().getRegionId()));
     }
     
     @Override

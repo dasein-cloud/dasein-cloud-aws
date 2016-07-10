@@ -80,7 +80,8 @@ public class Route53 implements DNSSupport {
             StringBuilder xml = new StringBuilder();
 
             xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-            xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2012-12-12/\">");
+            xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53" +
+                    AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) + "/doc/2012-12-12/\">");
             xml.append("<ChangeBatch>");
             xml.append("<Changes>");
             xml.append("<Change>");
@@ -146,7 +147,8 @@ public class Route53 implements DNSSupport {
             StringBuilder xml = new StringBuilder();
 
             xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-            xml.append("<CreateHostedZoneRequest xmlns=\"https://route53.amazonaws.com/doc/2012-12-12/\">");
+            xml.append("<CreateHostedZoneRequest xmlns=\"https://route53" +
+                    AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) + "/doc/2012-12-12/\">");
             xml.append("<Name>");
             xml.append(domainName);
             xml.append("</Name>");
@@ -205,7 +207,8 @@ public class Route53 implements DNSSupport {
                 StringBuilder xml = new StringBuilder();
 
                 xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n");
-                xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53.amazonaws.com/doc/2012-12-12/\">");
+                xml.append("<ChangeResourceRecordSetsRequest xmlns=\"https://route53" +
+                        AWSCloud.getRegionSuffix(provider.getContext().getRegionId()) + "/doc/2012-12-12/\">");
                 xml.append("<ChangeBatch>");
                 xml.append("<Changes>");
                 for( DNSRecord record : dnsRecords ) {
@@ -345,15 +348,18 @@ public class Route53 implements DNSSupport {
 
     private @Nonnull String getHostedZoneUrl(@Nullable String zoneId) {
         if( zoneId == null ) {
-            return "https://route53.amazonaws.com/" + provider.getRoute53Version() + "/hostedzone";
+            return "https://route53" + AWSCloud.getRegionSuffix(provider.getContext().getRegionId())
+                    + "/" + provider.getRoute53Version() + "/hostedzone";
         }
         else {
-            return "https://route53.amazonaws.com/" + provider.getRoute53Version() + "/hostedzone/" + zoneId;
+            return "https://route53" + AWSCloud.getRegionSuffix(provider.getContext().getRegionId())
+                    + "/" + provider.getRoute53Version() + "/hostedzone/" + zoneId;
         }
     }
     
     private @Nonnull String getResourceUrl(@Nonnull String zoneId) {
-        return "https://route53.amazonaws.com/" + provider.getRoute53Version() + "/hostedzone/" + zoneId + "/rrset";
+        return "https://route53" + AWSCloud.getRegionSuffix(provider.getContext().getRegionId())
+        + "/" + provider.getRoute53Version() + "/hostedzone/" + zoneId + "/rrset";
     }
     
     @Override
